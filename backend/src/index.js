@@ -28,13 +28,19 @@ app.get('/api/stats', (req, res) => {
 // ── Influencer list ────────────────────────────────────────────────────────
 app.get('/api/influencers', (req, res) => {
   let results = [...influencers];
-  const { type, persona_group, platform, approval_status, status, has_content, q } = req.query;
+  const { type, persona_group, platform, approval_status, status, has_content, campaign_type, q } = req.query;
+  const eventParam = req.query.event;
 
   if (type) results = results.filter(i => i.type === type);
   if (persona_group) results = results.filter(i => i.persona_group === persona_group);
   if (approval_status) results = results.filter(i => i.approval_status === approval_status);
   if (status) results = results.filter(i => i.status === status);
   if (has_content === 'true') results = results.filter(i => i.content && i.content.length > 0);
+  if (campaign_type) results = results.filter(i => i.campaign_types && i.campaign_types.includes(campaign_type));
+  if (eventParam) {
+    const events = Array.isArray(eventParam) ? eventParam : eventParam.split(',').filter(Boolean);
+    if (events.length > 0) results = results.filter(i => i.events && events.some(e => i.events.includes(e)));
+  }
   if (platform) results = results.filter(i =>
     i.platforms && i.platforms.some(p => p.platform.toLowerCase() === platform.toLowerCase())
   );
@@ -63,7 +69,7 @@ app.post('/api/influencers', (req, res) => {
     id: String(Date.now()),
     name,
     type,
-    persona_group: persona_group || 'Edu Coder',
+    persona_group: persona_group || 'Developer / Engineer',
     location: location || '',
     bio: '',
     campaign_rationale: '',

@@ -1,9 +1,9 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import './index.css';
 
 import {
   // UI Shell
-  Header, HeaderContainer, HeaderMenuButton, HeaderName,
+  Header, HeaderMenuButton, HeaderName,
   HeaderNavigation, HeaderMenuItem, SkipToContent,
   // Layout
   Content,
@@ -193,6 +193,16 @@ function InfluencerCard({ influencer, selected, onClick }) {
         <span className="hub-muted">{fmt(totalFollowers)} followers</span>
         {hasContent && <Tag type="blue" size="sm">IBM Content</Tag>}
       </div>
+      {(influencer.events?.length > 0) && (
+        <div className="hub-card-event-tags">
+          {influencer.events.slice(0, 2).map(e => (
+            <Tag key={e} type="gray" size="sm">{e}</Tag>
+          ))}
+          {influencer.events.length > 2 && (
+            <Tag type="gray" size="sm">+{influencer.events.length - 2}</Tag>
+          )}
+        </div>
+      )}
     </Tile>
   );
 }
@@ -205,8 +215,34 @@ const TYPE_ITEMS    = mkItems(['All Types', 'IBM Social League', 'External']);
 const STATUS_ITEMS  = mkItems(['All Statuses', 'Active', 'Dormant', 'Do Not Use']);
 const PLATFORM_ITEMS= mkItems(['All Platforms', 'YouTube', 'TikTok', 'Instagram', 'X', 'LinkedIn', 'Reddit']);
 const APPROVAL_ITEMS= mkItems(['All Approvals', 'Approved', 'Pending', 'Declined']);
-const PERSONA_ITEMS = mkItems(['All Personas', 'Edu Coder', 'Lifestyle Coder', 'Visionary', 'Change Maker']);
+const PERSONA_ITEMS = mkItems([
+  'All Personas',
+  'Developer / Engineer',
+  'Data & AI Specialist',
+  'Cybersecurity Expert',
+  'C-Suite / Executive',
+  'Entrepreneur / Founder',
+  'Thought Leader (Author, Speaker, Analyst)',
+  'Media / Content Creator (Podcast, YouTube)',
+  'Educator / Researcher',
+  'Sustainability / Climate',
+  'FinTech / Finance',
+]);
 const CONTENT_ITEMS = mkItems(['Any', 'Has IBM Content']);
+
+const CAMPAIGN_TYPE_OPTIONS = [
+  { value: '', text: 'All Campaign Types' },
+  ...['AI for Business','Automation / webMethods','Cross-Geo','Granite / Developer','Hybrid Cloud','Security','Sports Survey 2025','UK Narrative']
+    .map(v => ({ value: v, text: v })),
+];
+
+const EVENT_OPTIONS = [
+  { value: '', text: 'All Events' },
+  ...['AI Summit Korea','AWS re:Invent','Dreamforce','Ferrari / F1','Gartner Data & Analytics',
+     'GRAMMYs','IBM Accelerate','IBM Think','IBM TechXchange','KubeCon','Masters',
+     'Mobile World Congress','NFL','NRF','NY Tech Week','SIBOS','SXSW','US Open','VivaTech','Wimbledon',
+  ].map(v => ({ value: v, text: v })),
+];
 
 function FilterSelect({ label, value, options, onChange }) {
   return (
@@ -259,12 +295,16 @@ function LeftPanel({ influencers, selectedId, onSelect, onSearch, onFilter, filt
           ]} onChange={v => onFilter('approval_status', v)} />
           <FilterSelect label="Persona" value={filters.persona_group} options={[
             { value:'', text:'All Personas' },
-            ...['Edu Coder','Lifestyle Coder','Visionary','Change Maker'].map(p => ({ value:p, text:p })),
+            ...['Developer / Engineer','Data & AI Specialist','Cybersecurity Expert','C-Suite / Executive','Entrepreneur / Founder','Thought Leader (Author, Speaker, Analyst)','Media / Content Creator (Podcast, YouTube)','Educator / Researcher','Sustainability / Climate','FinTech / Finance'].map(p => ({ value:p, text:p })),
           ]} onChange={v => onFilter('persona_group', v)} />
           <FilterSelect label="IBM Content" value={filters.has_content} options={[
             { value:'', text:'Any' },
             { value:'true', text:'Has IBM Content' },
           ]} onChange={v => onFilter('has_content', v)} />
+          <FilterSelect label="Campaign Type" value={filters.campaign_type} options={CAMPAIGN_TYPE_OPTIONS}
+            onChange={v => onFilter('campaign_type', v)} />
+          <FilterSelect label="Events" value={filters.events} options={EVENT_OPTIONS}
+            onChange={v => onFilter('events', v)} />
         </div>
 
         <Button kind="ghost" size="sm" onClick={onViewFeed} className="hub-feed-btn">
@@ -318,6 +358,27 @@ function OverviewTab({ influencer, onRequestRate }) {
           ))}
         </div>
       </div>
+
+      {(influencer.events?.length > 0 || influencer.campaign_types?.length > 0) && (
+        <div className="hub-section">
+          {influencer.events?.length > 0 && (
+            <>
+              <p className="hub-section-label">Events</p>
+              <div className="hub-tag-row">
+                {influencer.events.map(e => <Tag key={e} type="gray" size="sm">{e}</Tag>)}
+              </div>
+            </>
+          )}
+          {influencer.campaign_types?.length > 0 && (
+            <>
+              <p className="hub-section-label" style={{ marginTop: influencer.events?.length > 0 ? '0.75rem' : 0 }}>Campaign Types</p>
+              <div className="hub-tag-row">
+                {influencer.campaign_types.map(c => <Tag key={c} type="cyan" size="sm">{c}</Tag>)}
+              </div>
+            </>
+          )}
+        </div>
+      )}
 
       <div className="hub-section hub-meta-row">
         <Tile className="hub-meta-tile">
@@ -742,9 +803,10 @@ export default function App() {
   const [influencers, setList]  = useState([]);
   const [selectedId, setSelected] = useState(null);
   const [searchQuery, setSearch] = useState('');
-  const [filters, setFilters]   = useState({ type:'', status:'', platform:'', approval_status:'', persona_group:'', has_content:'' });
+  const [filters, setFilters]   = useState({ type:'', status:'', platform:'', approval_status:'', persona_group:'', has_content:'', campaign_type:'', events:'' });
   const [showFeed, setShowFeed] = useState(false);
-  const [nlTimer, setNlTimer]   = useState(null);
+  const [sideNavExpanded, setSideNavExpanded] = useState(false);
+  const nlTimer = useRef(null);
 
   useEffect(() => {
     fetch(`${API}/stats`).then(r => r.json()).then(setStats);
@@ -752,18 +814,23 @@ export default function App() {
 
   useEffect(() => {
     const params = new URLSearchParams();
-    Object.entries(filters).forEach(([k, v]) => { if (v) params.set(k, v); });
+    Object.entries(filters).forEach(([k, v]) => {
+      if (k === 'events') {
+        if (v) params.set('event', v);
+      } else if (v) {
+        params.set(k, v);
+      }
+    });
 
     if (searchQuery.trim()) {
-      if (nlTimer) clearTimeout(nlTimer);
-      const t = setTimeout(() => {
+      clearTimeout(nlTimer.current);
+      nlTimer.current = setTimeout(() => {
         fetch(`${API}/search`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ query: searchQuery }),
         }).then(r => r.json()).then(data => { if (Array.isArray(data)) setList(data); });
       }, 400);
-      setNlTimer(t);
     } else {
       fetch(`${API}/influencers?${params}`)
         .then(r => r.json())
@@ -771,39 +838,41 @@ export default function App() {
     }
   }, [filters, searchQuery]); // eslint-disable-line
 
-  return (
-    <HeaderContainer render={({ isSideNavExpanded, onClickSideNavExpand }) => (
-      <>
-        <Header aria-label="IBM Influencer Intelligence Hub">
-          <SkipToContent />
-          <HeaderMenuButton aria-label="Open menu" onClick={onClickSideNavExpand} isActive={isSideNavExpanded} />
-          <HeaderName href="#" prefix="IBM">Influencer Intelligence Hub</HeaderName>
-          <HeaderNavigation aria-label="IBM Influencer Hub">
-            <HeaderMenuItem isActive={!showFeed} onClick={() => setShowFeed(false)}>Influencers</HeaderMenuItem>
-            <HeaderMenuItem isActive={showFeed} onClick={() => setShowFeed(true)}>#IBMPartner Feed</HeaderMenuItem>
-          </HeaderNavigation>
-        </Header>
+  const handleSelect = useCallback((id) => { setSelected(id); setShowFeed(false); }, []);
+  const handleFilter = useCallback((k, v) => setFilters(prev => ({ ...prev, [k]: v })), []);
+  const handleViewFeed = useCallback(() => setShowFeed(true), []);
 
-        <Content className="hub-content">
-          <StatsBar stats={stats} />
-          <div className="hub-main">
-            <LeftPanel
-              influencers={influencers}
-              selectedId={selectedId}
-              onSelect={id => { setSelected(id); setShowFeed(false); }}
-              onSearch={setSearch}
-              onFilter={(k, v) => setFilters(prev => ({ ...prev, [k]: v }))}
-              filters={filters}
-              searchQuery={searchQuery}
-              onViewFeed={() => setShowFeed(true)}
-            />
-            {showFeed
-              ? <GlobalFeed onClose={() => setShowFeed(false)} />
-              : <ProfileView influencerId={selectedId} />
-            }
-          </div>
-        </Content>
-      </>
-    )} />
+  return (
+    <>
+      <Header aria-label="IBM Influencer Intelligence Hub">
+        <SkipToContent />
+        <HeaderMenuButton aria-label="Open menu" onClick={() => setSideNavExpanded(v => !v)} isActive={sideNavExpanded} />
+        <HeaderName href="#" prefix="IBM">Influencer Intelligence Hub</HeaderName>
+        <HeaderNavigation aria-label="IBM Influencer Hub">
+          <HeaderMenuItem isActive={!showFeed} onClick={() => setShowFeed(false)}>Influencers</HeaderMenuItem>
+          <HeaderMenuItem isActive={showFeed} onClick={() => setShowFeed(true)}>#IBMPartner Feed</HeaderMenuItem>
+        </HeaderNavigation>
+      </Header>
+
+      <Content className="hub-content">
+        <StatsBar stats={stats} />
+        <div className="hub-main">
+          <LeftPanel
+            influencers={influencers}
+            selectedId={selectedId}
+            onSelect={handleSelect}
+            onSearch={setSearch}
+            onFilter={handleFilter}
+            filters={filters}
+            searchQuery={searchQuery}
+            onViewFeed={handleViewFeed}
+          />
+          {showFeed
+            ? <GlobalFeed onClose={() => setShowFeed(false)} />
+            : <ProfileView influencerId={selectedId} />
+          }
+        </div>
+      </Content>
+    </>
   );
 }
