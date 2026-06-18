@@ -346,7 +346,8 @@
 .hub-callout {
   border-left: 4px solid var(--cds-interactive);
   background: var(--cds-layer-01);
-  padding: 0.75rem 1rem;
+  padding: 0.5rem 0 0.5rem 0.75rem;
+  margin-left: -0.75rem;
   font-size: 0.875rem;
   line-height: 1.6;
 }
@@ -355,6 +356,8 @@
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
   gap: 0.5rem;
+  margin-left: -1rem;
+  margin-right: -1rem;
 }
 
 .hub-platform-card.cds--tile {
@@ -377,14 +380,21 @@
 .hub-meta-row {
   display: flex;
   gap: 0.75rem;
+  margin-left: -1rem;
+  margin-right: -1rem;
 }
 
 .hub-meta-tile.cds--tile {
-  flex: 1;
+  flex: 0 0 auto;
   padding: 0.75rem 1rem;
 }
 
 /* ─── Scorecard ──────────────────────────────────────────────────────────── */
+
+@keyframes hub-ring-draw {
+  from { stroke-dashoffset: var(--ring-from); }
+  to   { stroke-dashoffset: var(--ring-to); }
+}
 
 .hub-scorecard-layout {
   display: flex;
@@ -433,23 +443,66 @@
   overflow: hidden;
 }
 
+@keyframes hub-bar-grow {
+  from { transform: scaleX(0); }
+  to   { transform: scaleX(1); }
+}
+
 .hub-progress-fill {
   height: 100%;
   border-radius: 4px;
-  transition: width 0.4s ease;
+}
+
+.hub-scorecard-layout .hub-progress-fill {
+  transform-origin: left center;
+  animation: hub-bar-grow 0.85s cubic-bezier(0.4, 0, 0.2, 1) both;
 }
 
 .hub-methodology {
   border: 1px solid var(--cds-border-subtle-00);
+  border-radius: 2px;
 }
 
 .hub-methodology summary {
   padding: 0.625rem 1rem;
   font-size: 0.875rem;
+  font-weight: 500;
   color: var(--cds-text-secondary);
   cursor: pointer;
   background: var(--cds-layer-01);
   list-style: none;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  user-select: none;
+}
+
+.hub-methodology summary::-webkit-details-marker { display: none; }
+
+.hub-methodology summary::before {
+  content: '▶';
+  font-size: 0.625rem;
+  display: inline-block;
+  transition: transform 0.2s ease;
+  color: var(--cds-text-secondary);
+  flex-shrink: 0;
+}
+
+.hub-methodology[open] summary::before {
+  transform: rotate(90deg);
+}
+
+.hub-methodology summary::after {
+  content: 'click to expand';
+  font-size: 0.75rem;
+  font-weight: 400;
+  color: var(--cds-text-helper, #6f6f6f);
+  margin-left: auto;
+  font-style: italic;
+}
+
+.hub-methodology[open] summary::after {
+  content: 'click to collapse';
 }
 
 .hub-methodology-body {
@@ -457,6 +510,7 @@
   font-size: 0.8125rem;
   line-height: 1.6;
   color: var(--cds-text-secondary);
+  border-top: 1px solid var(--cds-border-subtle-00);
 }
 
 /* ─── Content tab ────────────────────────────────────────────────────────── */

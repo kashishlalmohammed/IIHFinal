@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import './index.css';
 
 import {
@@ -50,16 +50,38 @@ function scoreLabel(s) {
 
 // ── Score Ring (SVG) ──────────────────────────────────────────────────────────
 
-function ScoreRing({ score, size = 48, fontSize = 13 }) {
+function ScoreRing({ score, size = 48, fontSize = 13, animate = false }) {
   const r = (size - 8) / 2;
   const circ = 2 * Math.PI * r;
   const fill = ((score || 0) / 10) * circ;
   const color = scoreColor(score || 0);
+  // Force CSS animation to restart by remounting via a key tied to the score
+  const [animKey, setAnimKey] = useState(0);
+  const prevScore = useRef(null);
+
+  useEffect(() => {
+    if (animate && score !== prevScore.current) {
+      prevScore.current = score;
+      setAnimKey(k => k + 1);
+    }
+  }, [animate, score]);
+
   return (
     <svg width={size} height={size} style={{ transform: 'rotate(-90deg)', flexShrink: 0 }}>
       <circle cx={size/2} cy={size/2} r={r} fill="none" stroke="#e0e0e0" strokeWidth={5} />
-      <circle cx={size/2} cy={size/2} r={r} fill="none" stroke={color} strokeWidth={5}
-        strokeDasharray={`${fill} ${circ}`} strokeLinecap="round" />
+      <circle
+        key={animate ? animKey : undefined}
+        cx={size/2} cy={size/2} r={r}
+        fill="none" stroke={color} strokeWidth={5}
+        strokeLinecap="round"
+        strokeDasharray={`${circ} ${circ}`}
+        strokeDashoffset={circ - fill}
+        style={animate ? {
+          animation: `hub-ring-draw 1.6s cubic-bezier(0, 0, 0.2, 1) forwards`,
+          '--ring-from': circ,
+          '--ring-to': circ - fill,
+        } : undefined}
+      />
       <text x="50%" y="50%" textAnchor="middle" dominantBaseline="central"
         style={{ transform:'rotate(90deg)', transformOrigin:'50% 50%',
           fill: color, fontSize: `${fontSize}px`, fontWeight: 600, fontFamily: 'IBM Plex Sans, sans-serif' }}>
@@ -344,7 +366,7 @@ function ScorecardTab({ influencer }) {
     <div className="hub-tab-content">
       <div className="hub-scorecard-layout">
         <div className="hub-score-hero">
-          <ScoreRing score={s.composite} size={120} fontSize={22} />
+          <ScoreRing score={s.composite} size={120} fontSize={22} animate />
           <p className="hub-score-label" style={{ color: scoreColor(s.composite || 0) }}>
             {scoreLabel(s.composite || 0)}
           </p>
