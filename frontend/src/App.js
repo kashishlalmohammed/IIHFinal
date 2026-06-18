@@ -532,37 +532,39 @@ function ContentTab({ influencer }) {
       )}
 
       {!syncing && content.length > 0 && (
-        <StructuredListWrapper>
-          <StructuredListHead>
-            <StructuredListRow head>
-              <StructuredListCell head>Platform</StructuredListCell>
-              <StructuredListCell head>Title / Type</StructuredListCell>
-              <StructuredListCell head>IBM Product</StructuredListCell>
-              <StructuredListCell head>Date</StructuredListCell>
-              <StructuredListCell head>Views</StructuredListCell>
-              <StructuredListCell head>Eng. Rate</StructuredListCell>
-              <StructuredListCell head>Link</StructuredListCell>
-            </StructuredListRow>
-          </StructuredListHead>
-          <StructuredListBody>
-            {content.map(c => (
-              <StructuredListRow key={c.id}>
-                <StructuredListCell><PlatformTag platform={c.platform} /></StructuredListCell>
-                <StructuredListCell>
-                  <span style={{ fontSize: '0.875rem' }}>{c.title || c.content_type}</span>
-                  {c.ibm_partner_confirmed && <Tag type="blue" size="sm" style={{ marginLeft: '0.5rem' }}>#IBMPartner</Tag>}
-                </StructuredListCell>
-                <StructuredListCell>{c.ibm_product_tag || '—'}</StructuredListCell>
-                <StructuredListCell>{c.post_date}</StructuredListCell>
-                <StructuredListCell>{fmt(c.views)}</StructuredListCell>
-                <StructuredListCell>{c.engagement_rate != null ? c.engagement_rate.toFixed(2) + '%' : '—'}</StructuredListCell>
-                <StructuredListCell>
-                  <Link href={c.permalink} target="_blank" rel="noopener noreferrer">View ↗</Link>
-                </StructuredListCell>
+        <div className="hub-table-scroll">
+          <StructuredListWrapper>
+            <StructuredListHead>
+              <StructuredListRow head>
+                <StructuredListCell head>Platform</StructuredListCell>
+                <StructuredListCell head>Title / Type</StructuredListCell>
+                <StructuredListCell head>IBM Product</StructuredListCell>
+                <StructuredListCell head style={{ whiteSpace: 'nowrap' }}>Date</StructuredListCell>
+                <StructuredListCell head style={{ whiteSpace: 'nowrap' }}>Views</StructuredListCell>
+                <StructuredListCell head style={{ whiteSpace: 'nowrap' }}>Eng. Rate</StructuredListCell>
+                <StructuredListCell head style={{ whiteSpace: 'nowrap' }}>Link</StructuredListCell>
               </StructuredListRow>
-            ))}
-          </StructuredListBody>
-        </StructuredListWrapper>
+            </StructuredListHead>
+            <StructuredListBody>
+              {content.map(c => (
+                <StructuredListRow key={c.id}>
+                  <StructuredListCell><PlatformTag platform={c.platform} /></StructuredListCell>
+                  <StructuredListCell>
+                    <span style={{ fontSize: '0.875rem' }}>{c.title || c.content_type}</span>
+                    {c.ibm_partner_confirmed && <Tag type="blue" size="sm" style={{ marginLeft: '0.5rem' }}>#IBMPartner</Tag>}
+                  </StructuredListCell>
+                  <StructuredListCell>{c.ibm_product_tag || '—'}</StructuredListCell>
+                  <StructuredListCell style={{ whiteSpace: 'nowrap' }}>{c.post_date}</StructuredListCell>
+                  <StructuredListCell style={{ whiteSpace: 'nowrap' }}>{fmt(c.views)}</StructuredListCell>
+                  <StructuredListCell style={{ whiteSpace: 'nowrap' }}>{c.engagement_rate != null ? c.engagement_rate.toFixed(2) + '%' : '—'}</StructuredListCell>
+                  <StructuredListCell>
+                    <Link href={c.permalink} target="_blank" rel="noopener noreferrer" style={{ whiteSpace: 'nowrap' }}>View ↗</Link>
+                  </StructuredListCell>
+                </StructuredListRow>
+              ))}
+            </StructuredListBody>
+          </StructuredListWrapper>
+        </div>
       )}
     </div>
   );
@@ -756,40 +758,42 @@ function GlobalFeed({ onClose }) {
       {feed.length === 0
         ? <Tile className="hub-empty-tile" style={{ textAlign: 'center' }}>No posts match these filters.</Tile>
         : (
-          <StructuredListWrapper>
-            <StructuredListHead>
-              <StructuredListRow head>
-                <StructuredListCell head>Creator</StructuredListCell>
-                <StructuredListCell head>Platform</StructuredListCell>
-                <StructuredListCell head>Title</StructuredListCell>
-                <StructuredListCell head>IBM Product</StructuredListCell>
-                <StructuredListCell head>Date</StructuredListCell>
-                <StructuredListCell head>Views</StructuredListCell>
-                <StructuredListCell head>ER</StructuredListCell>
-                <StructuredListCell head>Link</StructuredListCell>
-              </StructuredListRow>
-            </StructuredListHead>
-            <StructuredListBody>
-              {feed.map(e => (
-                <StructuredListRow key={e.id}>
-                  <StructuredListCell>
-                    <Tag type={e.influencer_type === 'internal' ? 'blue' : 'cool-gray'} size="sm">
-                      {e.influencer_name}
-                    </Tag>
-                  </StructuredListCell>
-                  <StructuredListCell><PlatformTag platform={e.platform} /></StructuredListCell>
-                  <StructuredListCell style={{ maxWidth: 260 }}>{e.title || e.content_type}</StructuredListCell>
-                  <StructuredListCell>{e.ibm_product_tag || '—'}</StructuredListCell>
-                  <StructuredListCell>{e.post_date}</StructuredListCell>
-                  <StructuredListCell>{fmt(e.views)}</StructuredListCell>
-                  <StructuredListCell>{e.engagement_rate != null ? e.engagement_rate.toFixed(2) + '%' : '—'}</StructuredListCell>
-                  <StructuredListCell>
-                    <Link href={e.permalink} target="_blank" rel="noopener noreferrer">View ↗</Link>
-                  </StructuredListCell>
+          <div className="hub-table-scroll">
+            <StructuredListWrapper>
+              <StructuredListHead>
+                <StructuredListRow head>
+                  <StructuredListCell head>Creator</StructuredListCell>
+                  <StructuredListCell head>Platform</StructuredListCell>
+                  <StructuredListCell head>Title</StructuredListCell>
+                  <StructuredListCell head>IBM Product</StructuredListCell>
+                  <StructuredListCell head>Date</StructuredListCell>
+                  <StructuredListCell head>Views</StructuredListCell>
+                  <StructuredListCell head>ER</StructuredListCell>
+                  <StructuredListCell head>Link</StructuredListCell>
                 </StructuredListRow>
-              ))}
-            </StructuredListBody>
-          </StructuredListWrapper>
+              </StructuredListHead>
+              <StructuredListBody>
+                {feed.map(e => (
+                  <StructuredListRow key={e.id}>
+                    <StructuredListCell>
+                      <Tag type={e.influencer_type === 'internal' ? 'blue' : 'cool-gray'} size="sm">
+                        {e.influencer_name}
+                      </Tag>
+                    </StructuredListCell>
+                    <StructuredListCell><PlatformTag platform={e.platform} /></StructuredListCell>
+                    <StructuredListCell style={{ maxWidth: 260 }}>{e.title || e.content_type}</StructuredListCell>
+                    <StructuredListCell>{e.ibm_product_tag || '—'}</StructuredListCell>
+                    <StructuredListCell>{e.post_date}</StructuredListCell>
+                    <StructuredListCell>{fmt(e.views)}</StructuredListCell>
+                    <StructuredListCell>{e.engagement_rate != null ? e.engagement_rate.toFixed(2) + '%' : '—'}</StructuredListCell>
+                    <StructuredListCell>
+                      <Link href={e.permalink} target="_blank" rel="noopener noreferrer" style={{ whiteSpace: 'nowrap' }}>View ↗</Link>
+                    </StructuredListCell>
+                  </StructuredListRow>
+                ))}
+              </StructuredListBody>
+            </StructuredListWrapper>
+          </div>
         )
       }
     </div>

@@ -617,3 +617,107 @@
   color: var(--cds-link-primary);
   margin: 0.75rem 0 0.25rem;
 }
+
+/* ─── Table scroll wrapper ───────────────────────────────────────────────── */
+
+.hub-table-scroll {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* ─── Responsive breakpoints ─────────────────────────────────────────────── */
+
+/* ── Tablet (640–1023px) ── */
+@media (max-width: 1023px) {
+
+  /* Stack the two panels vertically */
+  .hub-main {
+    flex-direction: column;
+    overflow-y: auto;
+    overflow-x: hidden;
+  }
+
+  .hub-left-panel {
+    width: 100%;
+    min-width: 0;
+    max-height: 60vh;
+    border-right: none;
+    border-bottom: 1px solid var(--cds-border-subtle-00);
+  }
+
+  .hub-right-panel {
+    overflow: visible;
+    min-height: 50vh;
+  }
+
+  /* Stats: 3 tiles per row */
+  .hub-stats-bar {
+    flex-wrap: wrap;
+  }
+
+  .hub-stat-tile.cds--tile {
+    min-width: calc(33.34% - 1px);
+  }
+
+  /* Filter grid: 2 columns */
+  .hub-filter-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+/* ── Mobile (<640px) ── */
+@media (max-width: 639px) {
+
+  /* Tighter left panel cap */
+  .hub-left-panel {
+    max-height: 55vh;
+  }
+
+  /* Stats: 2 tiles per row, smaller numbers */
+  .hub-stat-tile.cds--tile {
+    min-width: calc(50% - 1px);
+  }
+
+  .hub-stat-value {
+    font-size: 1.5rem;
+  }
+
+  /* Filter grid: single column */
+  .hub-filter-grid {
+    grid-template-columns: 1fr;
+  }
+
+  /* Tighter padding in right panel */
+  .hub-tab-content {
+    padding: 1rem;
+  }
+
+  .hub-profile-header {
+    padding: 1rem 1rem 0;
+  }
+
+  .hub-feed-view {
+    padding: 1rem;
+  }
+
+  /* Platform strip: wrap instead of horizontal scroll */
+  .hub-platform-strip {
+    overflow-x: visible;
+    flex-wrap: wrap;
+  }
+
+  /* Scorecard: stack score hero above metrics */
+  .hub-scorecard-layout {
+    flex-direction: column;
+    gap: 1rem;
+  }
+
+  .hub-score-hero {
+    width: 100%;
+  }
+
+  /* Profile name: shrink font on tiny screens */
+  .hub-profile-name {
+    font-size: 1.25rem;
+  }
+}
