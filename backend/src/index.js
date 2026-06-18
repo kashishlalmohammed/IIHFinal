@@ -3,130 +3,71 @@ const cors = require('cors');
 const path = require('path');
 require('dotenv').config();
 
+const {
+  getContentFeed,
+  getInfluencerById,
+  getInfluencerContent,
+  getInfluencerRate,
+  getInfluencerScore,
+  getStats,
+  listInfluencers,
+  searchInfluencers,
+} = require('./db');
+
 const app = express();
 app.use(cors());
 app.use(express.json());
 
-// Serve the React production build
 const uiBuild = path.join(__dirname, '../../frontend/build');
 app.use(express.static(uiBuild));
 
-let influencers = require('./data/influencers');
-
-// ── Stats ──────────────────────────────────────────────────────────────────
 app.get('/api/stats', (req, res) => {
-  const total = influencers.length;
-  const active = influencers.filter(i => i.status === 'active').length;
-  const approved = influencers.filter(i => i.approval_status === 'approved').length;
-  const withContent = influencers.filter(i => i.content && i.content.length > 0).length;
-  const avgScore = (
-    influencers.reduce((acc, i) => acc + (i.score?.composite || 0), 0) / total
-  ).toFixed(1);
-  res.json({ total, active, approved, withContent, avgScore });
+  res.json(getStats());
 });
 
-// ── Influencer list ────────────────────────────────────────────────────────
 app.get('/api/influencers', (req, res) => {
-  let results = [...influencers];
-  const { type, persona_group, platform, approval_status, status, has_content, campaign_type, q } = req.query;
-  const eventParam = req.query.event;
-
-  if (type) results = results.filter(i => i.type === type);
-  if (persona_group) results = results.filter(i => i.persona_group === persona_group);
-  if (approval_status) results = results.filter(i => i.approval_status === approval_status);
-  if (status) results = results.filter(i => i.status === status);
-  if (has_content === 'true') results = results.filter(i => i.content && i.content.length > 0);
-  if (campaign_type) results = results.filter(i => i.campaign_types && i.campaign_types.includes(campaign_type));
-  if (eventParam) {
-    const events = Array.isArray(eventParam) ? eventParam : eventParam.split(',').filter(Boolean);
-    if (events.length > 0) results = results.filter(i => i.events && events.some(e => i.events.includes(e)));
-  }
-  if (platform) results = results.filter(i =>
-    i.platforms && i.platforms.some(p => p.platform.toLowerCase() === platform.toLowerCase())
-  );
-  if (q) {
-    const lower = q.toLowerCase();
-    results = results.filter(i =>
-      i.name.toLowerCase().includes(lower) ||
-      i.bio?.toLowerCase().includes(lower) ||
-      i.persona_group?.toLowerCase().includes(lower) ||
-      i.location?.toLowerCase().includes(lower) ||
-      i.platforms?.some(p => p.handle.toLowerCase().includes(lower)) ||
-      i.content?.some(c => c.ibm_product_tag?.toLowerCase().includes(lower) || c.title?.toLowerCase().includes(lower))
-    );
-  }
-
-  // Strip sensitive rate field from list view
+  const results = listInfluencers(req.query);
   const safe = results.map(({ rate, ...rest }) => rest);
   res.json(safe);
 });
 
-// ── Create influencer ─────────────────────────────────────────────────────
 app.post('/api/influencers', (req, res) => {
-  const { name, type, persona_group, location, status } = req.body;
+  const { name, type } = req.body;
   if (!name || !type) return res.status(400).json({ error: 'name and type are required' });
-  const newInfluencer = {
-    id: String(Date.now()),
-    name,
-    type,
-    persona_group: persona_group || 'Developer / Engineer',
-    location: location || '',
-    bio: '',
-    campaign_rationale: '',
-    status: status || 'active',
-    approval_status: 'pending',
-    owner: '',
-    last_collaborated: null,
-    rate: null,
-    platforms: [],
-    score: { engagement_score: null, reach_score: null, quality_score: null, cost_score: null, advocacy_score: null, composite: null },
-    content: [],
-    feedback: []
-  };
-  influencers.push(newInfluencer);
-  const { rate, ...safe } = newInfluencer;
-  res.status(201).json(safe);
+  res.status(501).json({ error: 'Creating influencers is not supported for the SQLite dataset.' });
 });
 
-// ── Single profile ────────────────────────────────────────────────────────
 app.get('/api/influencers/:id', (req, res) => {
-  const influencer = influencers.find(i => i.id === req.params.id);
+  const influencer = getInfluencerById(req.params.id);
   if (!influencer) return res.status(404).json({ error: 'Not found' });
   const { rate, ...safe } = influencer;
   res.json(safe);
 });
 
-// ── Rate (gated) ──────────────────────────────────────────────────────────
 app.get('/api/influencers/:id/rate', (req, res) => {
-  // In production, check role/session here
-  const influencer = influencers.find(i => i.id === req.params.id);
-  if (!influencer) return res.status(404).json({ error: 'Not found' });
-  res.json({ rate: influencer.rate || 'Not on file' });
+  const rate = getInfluencerRate(req.params.id);
+  if (rate === undefined) return res.status(404).json({ error: 'Not found' });
+  res.json({ rate: rate || 'Not on file' });
 });
 
-// ── Scorecard ─────────────────────────────────────────────────────────────
 app.get('/api/influencers/:id/score', (req, res) => {
-  const influencer = influencers.find(i => i.id === req.params.id);
-  if (!influencer) return res.status(404).json({ error: 'Not found' });
-  res.json(influencer.score || {});
+  const score = getInfluencerScore(req.params.id);
+  if (!score) return res.status(404).json({ error: 'Not found' });
+  res.json(score);
 });
 
-// ── Content history ───────────────────────────────────────────────────────
 app.get('/api/influencers/:id/content', (req, res) => {
-  const influencer = influencers.find(i => i.id === req.params.id);
+  const influencer = getInfluencerById(req.params.id);
   if (!influencer) return res.status(404).json({ error: 'Not found' });
-  res.json(influencer.content || []);
+  res.json(getInfluencerContent(req.params.id));
 });
 
-// ── Sync (mock + YouTube stub) ────────────────────────────────────────────
 app.post('/api/influencers/:id/sync', async (req, res) => {
-  const influencer = influencers.find(i => i.id === req.params.id);
+  const influencer = getInfluencerById(req.params.id);
   if (!influencer) return res.status(404).json({ error: 'Not found' });
 
-  // Simulate brief processing delay
-  await new Promise(r => setTimeout(r, 1200));
+  await new Promise(resolve => setTimeout(resolve, 1200));
 
-  // Return existing content as "synced" result (pre-cached for demo safety)
   res.json({
     status: 'success',
     posts_found: influencer.content.length,
@@ -135,15 +76,14 @@ app.post('/api/influencers/:id/sync', async (req, res) => {
   });
 });
 
-// ── Feedback ──────────────────────────────────────────────────────────────
 app.get('/api/influencers/:id/feedback', (req, res) => {
-  const influencer = influencers.find(i => i.id === req.params.id);
+  const influencer = getInfluencerById(req.params.id);
   if (!influencer) return res.status(404).json({ error: 'Not found' });
   res.json(influencer.feedback || []);
 });
 
 app.post('/api/influencers/:id/feedback', (req, res) => {
-  const influencer = influencers.find(i => i.id === req.params.id);
+  const influencer = getInfluencerById(req.params.id);
   if (!influencer) return res.status(404).json({ error: 'Not found' });
   const entry = {
     id: `f${Date.now()}`,
@@ -152,85 +92,18 @@ app.post('/api/influencers/:id/feedback', (req, res) => {
     body: req.body.body,
     created_at: new Date().toISOString().split('T')[0]
   };
-  influencer.feedback.push(entry);
   res.status(201).json(entry);
 });
 
-// ── Global content feed ───────────────────────────────────────────────────
 app.get('/api/content/feed', (req, res) => {
-  let all = [];
-  influencers.forEach(inf => {
-    (inf.content || []).forEach(c => {
-      all.push({ ...c, influencer_id: inf.id, influencer_name: inf.name, influencer_type: inf.type });
-    });
-  });
-
-  const { platform, ibm_product } = req.query;
-  if (platform) all = all.filter(c => c.platform.toLowerCase() === platform.toLowerCase());
-  if (ibm_product) all = all.filter(c => c.ibm_product_tag?.toLowerCase().includes(ibm_product.toLowerCase()));
-
-  all.sort((a, b) => new Date(b.post_date) - new Date(a.post_date));
-  res.json(all);
+  res.json(getContentFeed(req.query));
 });
 
-// ── NL Search (watsonx mock — keyword + intent scoring) ───────────────────
 app.post('/api/search', (req, res) => {
-  const { query } = req.body;
-  if (!query) return res.json(influencers.map(({ rate, ...rest }) => rest));
-
-  const lower = query.toLowerCase();
-  const keywords = lower.split(/\s+/).filter(k => k.length > 1);
-
-  // Intent signals
-  const wantsHighEngagement = /best engagement|highest engagement|top engagement/i.test(lower);
-  const wantsLowFollowers   = /under (\d+)k|fewer than|small audience|micro/i.test(lower);
-  const wantsInternal       = /internal|social league|advocate|ibm employee/i.test(lower);
-  const wantsExternal       = /external|paid|sponsored/i.test(lower);
-  const wantsActive         = /active|available/i.test(lower);
-  const wantsApproved       = /approved/i.test(lower);
-
-  // Extract follower ceiling from queries like "under 500K" or "under 500k followers"
-  let followerCeiling = Infinity;
-  const followerMatch = lower.match(/under\s+(\d+)\s*k/i);
-  if (followerMatch) followerCeiling = parseInt(followerMatch[1]) * 1000;
-
-  const scored = influencers.map(inf => {
-    const searchText = [
-      inf.name, inf.type, inf.persona_group, inf.location, inf.bio,
-      inf.campaign_rationale,
-      ...(inf.platforms || []).map(p => `${p.platform} ${p.handle}`),
-      ...(inf.content || []).map(c => `${c.ibm_product_tag} ${c.title}`)
-    ].join(' ').toLowerCase();
-
-    let score = keywords.filter(k => searchText.includes(k)).length * 2;
-
-    // Bonus points for intent signals
-    if (wantsHighEngagement && inf.score?.engagement_score >= 8.5) score += 5;
-    if (wantsInternal && inf.type === 'internal') score += 4;
-    if (wantsExternal && inf.type === 'external') score += 4;
-    if (wantsActive && inf.status === 'active') score += 2;
-    if (wantsApproved && inf.approval_status === 'approved') score += 2;
-
-    // Follower ceiling filter — penalize heavily if over limit
-    const totalFollowers = (inf.platforms || []).reduce((s, p) => s + (p.follower_count || 0), 0);
-    if (totalFollowers > followerCeiling) score -= 10;
-
-    return { influencer: inf, score };
-  });
-
-  // Sort: matched results by score desc, then by composite score
-  const results = scored
-    .filter(s => s.score > 0)
-    .sort((a, b) => b.score - a.score || (b.influencer.score?.composite || 0) - (a.influencer.score?.composite || 0))
-    .map(s => {
-      const { rate, ...safe } = s.influencer;
-      return safe;
-    });
-
-  res.json(results.length > 0 ? results : influencers.map(({ rate, ...rest }) => rest));
+  const results = searchInfluencers(req.body.query).map(({ rate, ...rest }) => rest);
+  res.json(results.length > 0 ? results : listInfluencers().map(({ rate, ...rest }) => rest));
 });
 
-// All non-API routes return the React app
 app.get('/{*splat}', (req, res) => {
   res.sendFile(path.join(uiBuild, 'index.html'));
 });

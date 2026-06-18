@@ -4,6 +4,7 @@
   "description": "",
   "main": "src/index.js",
   "scripts": {
+    "build-db": "python3 src/scripts/build_db.py",
     "start": "node src/index.js",
     "dev": "node --watch src/index.js",
     "test": "echo \"Error: no test specified\" && exit 1"
