@@ -55,6 +55,33 @@ app.get('/api/influencers', (req, res) => {
   res.json(safe);
 });
 
+// ── Create influencer ─────────────────────────────────────────────────────
+app.post('/api/influencers', (req, res) => {
+  const { name, type, persona_group, location, status } = req.body;
+  if (!name || !type) return res.status(400).json({ error: 'name and type are required' });
+  const newInfluencer = {
+    id: String(Date.now()),
+    name,
+    type,
+    persona_group: persona_group || 'Edu Coder',
+    location: location || '',
+    bio: '',
+    campaign_rationale: '',
+    status: status || 'active',
+    approval_status: 'pending',
+    owner: '',
+    last_collaborated: null,
+    rate: null,
+    platforms: [],
+    score: { engagement_score: null, reach_score: null, quality_score: null, cost_score: null, advocacy_score: null, composite: null },
+    content: [],
+    feedback: []
+  };
+  influencers.push(newInfluencer);
+  const { rate, ...safe } = newInfluencer;
+  res.status(201).json(safe);
+});
+
 // ── Single profile ────────────────────────────────────────────────────────
 app.get('/api/influencers/:id', (req, res) => {
   const influencer = influencers.find(i => i.id === req.params.id);
@@ -140,30 +167,55 @@ app.get('/api/content/feed', (req, res) => {
   res.json(all);
 });
 
-// ── NL Search (watsonx mock) ──────────────────────────────────────────────
+// ── NL Search (watsonx mock — keyword + intent scoring) ───────────────────
 app.post('/api/search', (req, res) => {
   const { query } = req.body;
   if (!query) return res.json(influencers.map(({ rate, ...rest }) => rest));
 
   const lower = query.toLowerCase();
-  const keywords = lower.split(/\s+/);
+  const keywords = lower.split(/\s+/).filter(k => k.length > 1);
 
-  // Score-based fuzzy matching on keywords
+  // Intent signals
+  const wantsHighEngagement = /best engagement|highest engagement|top engagement/i.test(lower);
+  const wantsLowFollowers   = /under (\d+)k|fewer than|small audience|micro/i.test(lower);
+  const wantsInternal       = /internal|social league|advocate|ibm employee/i.test(lower);
+  const wantsExternal       = /external|paid|sponsored/i.test(lower);
+  const wantsActive         = /active|available/i.test(lower);
+  const wantsApproved       = /approved/i.test(lower);
+
+  // Extract follower ceiling from queries like "under 500K" or "under 500k followers"
+  let followerCeiling = Infinity;
+  const followerMatch = lower.match(/under\s+(\d+)\s*k/i);
+  if (followerMatch) followerCeiling = parseInt(followerMatch[1]) * 1000;
+
   const scored = influencers.map(inf => {
-    const text = [
+    const searchText = [
       inf.name, inf.type, inf.persona_group, inf.location, inf.bio,
       inf.campaign_rationale,
       ...(inf.platforms || []).map(p => `${p.platform} ${p.handle}`),
       ...(inf.content || []).map(c => `${c.ibm_product_tag} ${c.title}`)
     ].join(' ').toLowerCase();
 
-    const hits = keywords.filter(k => text.includes(k)).length;
-    return { influencer: inf, hits };
+    let score = keywords.filter(k => searchText.includes(k)).length * 2;
+
+    // Bonus points for intent signals
+    if (wantsHighEngagement && inf.score?.engagement_score >= 8.5) score += 5;
+    if (wantsInternal && inf.type === 'internal') score += 4;
+    if (wantsExternal && inf.type === 'external') score += 4;
+    if (wantsActive && inf.status === 'active') score += 2;
+    if (wantsApproved && inf.approval_status === 'approved') score += 2;
+
+    // Follower ceiling filter — penalize heavily if over limit
+    const totalFollowers = (inf.platforms || []).reduce((s, p) => s + (p.follower_count || 0), 0);
+    if (totalFollowers > followerCeiling) score -= 10;
+
+    return { influencer: inf, score };
   });
 
+  // Sort: matched results by score desc, then by composite score
   const results = scored
-    .filter(s => s.hits > 0)
-    .sort((a, b) => b.hits - a.hits)
+    .filter(s => s.score > 0)
+    .sort((a, b) => b.score - a.score || (b.influencer.score?.composite || 0) - (a.influencer.score?.composite || 0))
     .map(s => {
       const { rate, ...safe } = s.influencer;
       return safe;
