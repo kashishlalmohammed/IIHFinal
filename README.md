@@ -5,6 +5,66 @@
 
 ---
 
+## Prerequisites
+
+| Tool | Version | Why |
+|------|---------|-----|
+| **Node.js** | **≥ 22** | Backend uses the `node:sqlite` built-in module (added in Node 22) |
+| **npm** | ≥ 10 | Bundled with Node 22 |
+| **Python 3** | ≥ 3.9 | Only needed if you want to rebuild the SQLite DB from CSV source files |
+
+Check your Node version before starting:
+
+```bash
+node --version   # must print v22.x.x or higher
+```
+
+If you're on an older version, install Node 22 via [nvm](https://github.com/nvm-sh/nvm):
+
+```bash
+nvm install 22
+nvm use 22
+```
+
+---
+
+## Quick start
+
+### Option A — run both together (recommended)
+
+From the **repo root**:
+
+```bash
+npm install          # installs concurrently (one-time)
+npm run dev          # starts backend on :3001 and frontend on :3002
+```
+
+Open [http://localhost:3002](http://localhost:3002).
+
+### Option B — run separately
+
+**Terminal 1 — Backend API (port 3001)**
+
+```bash
+cd backend
+npm install
+npm start
+```
+
+**Terminal 2 — Frontend (port 3000)**
+
+```bash
+cd frontend
+npm install
+npm start
+```
+
+Open [http://localhost:3000](http://localhost:3000).
+
+> **Note:** The SQLite database (`backend/data/influencers.sqlite`) is committed to the repo — no extra setup needed to get data running.
+
+---
+
 ## What it does
 
 A centralized influencer management platform solving three jobs for IBM Marketing:
@@ -14,28 +74,6 @@ A centralized influencer management platform solving three jobs for IBM Marketin
 3. **Decide** — Re-engage or find someone new?
 
 Core differentiator: **#IBMPartner Content Sync** — every FTC-mandated `#IBMPartner` post by a creator becomes their automatic IBM content history, queried live from platform APIs.
-
----
-
-## Quick start
-
-### 1. Backend API (port 3001)
-
-```bash
-cd backend
-npm install
-npm start
-```
-
-### 2. Frontend (port 3000)
-
-```bash
-cd frontend
-npm install
-npm start
-```
-
-Open [http://localhost:3000](http://localhost:3000).
 
 ---
 
@@ -107,7 +145,7 @@ POST /api/search                   { query: "natural language string" }
 
 ## Seed data
 
-8 influencers seeded in [`backend/src/data/influencers.js`](backend/src/data/influencers.js):
+8 influencers seeded in the SQLite database (`backend/data/influencers.sqlite`):
 
 | Name | Type | Score | Platforms |
 |------|------|-------|-----------|
@@ -120,6 +158,20 @@ POST /api/search                   { query: "natural language string" }
 | Kenji Watanabe | External (dormant) | 7.0 | YouTube, X |
 | Tyler Reeves | External (declined) | 5.6 | YouTube, X |
 
+### Rebuilding the database from source CSVs
+
+The committed SQLite file is ready to use. If you have the original CSV source files and need to rebuild from scratch:
+
+```bash
+cd backend
+npm run build-db        # runs python3 src/scripts/build_db.py
+python3 src/scripts/fix_dates.py        # normalise post_date values
+python3 src/scripts/remap_personas.py   # apply persona mappings
+python3 src/scripts/manual_fixes.py     # apply manual data corrections
+```
+
+The CSVs are not committed to the repo (they contain raw engagement data). Contact a project maintainer if you need them.
+
 ---
 
 ## Architecture
@@ -131,11 +183,13 @@ frontend/          React + @carbon/react
 
 backend/
   src/index.js     Express REST API
-  src/data/        Seed data — replace with Supabase DB in production
+  src/db.js        SQLite query layer (node:sqlite built-in)
+  src/scripts/     DB build + maintenance scripts (Python 3)
+  data/            influencers.sqlite — committed, ready to use
 ```
 
 ### Production path (post-hackathon)
-- Swap in-memory data for PostgreSQL via Supabase
+- Swap SQLite for PostgreSQL via Supabase
 - Wire YouTube Data API v3 live (YOUTUBE_API_KEY env var)
 - Wire watsonx.ai for real NLP search + product auto-tagging
 - Add IBM w3id SSO to gate rate/contact fields
