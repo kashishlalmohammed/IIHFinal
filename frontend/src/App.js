@@ -10,7 +10,7 @@ import {
   // Tiles
   Tile,
   // Inputs
-  Search, Button, Dropdown, Tag, Modal,
+  Search, Button, Dropdown, Tag, Modal, TextInput, TextArea, Select, SelectItem,
   // Tabs
   Tabs, Tab, TabList, TabPanels, TabPanel,
   // Notifications
@@ -32,6 +32,13 @@ function fmt(n) {
   if (n >= 1_000_000) return (n / 1_000_000).toFixed(1) + 'M';
   if (n >= 1_000) return (n / 1_000).toFixed(1) + 'K';
   return String(n);
+}
+
+function fmtDate(raw) {
+  if (!raw) return '—';
+  const d = new Date(raw + 'T00:00:00');
+  if (isNaN(d)) return raw;
+  return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
 }
 
 function scoreColor(s) {
@@ -165,9 +172,101 @@ function StatsBar({ stats }) {
   );
 }
 
+// ── Influencer Form Modal (Add / Edit) ────────────────────────────────────────
+
+const BLANK_FORM = {
+  name: '', type: 'external', persona_group: 'Developer / Engineer',
+  location: '', bio: '', status: 'active', approval_status: 'pending', owner: '',
+};
+
+function InfluencerFormModal({ open, influencer, onClose, onSave }) {
+  const isEdit = Boolean(influencer);
+  const [form, setForm] = useState(BLANK_FORM);
+
+  useEffect(() => {
+    if (open) {
+      setForm(influencer
+        ? {
+            name: influencer.name || '',
+            type: influencer.type || 'external',
+            persona_group: influencer.persona_group || 'Developer / Engineer',
+            location: influencer.location || '',
+            bio: influencer.bio || '',
+            status: influencer.status || 'active',
+            approval_status: influencer.approval_status || 'pending',
+            owner: influencer.owner || '',
+          }
+        : BLANK_FORM
+      );
+    }
+  }, [open, influencer]);
+
+  function set(k, v) { setForm(prev => ({ ...prev, [k]: v })); }
+
+  function handleSave() {
+    if (!form.name.trim()) return;
+    onSave(form);
+  }
+
+  return (
+    <Modal
+      open={open}
+      onRequestClose={onClose}
+      onRequestSubmit={handleSave}
+      modalHeading={isEdit ? `Edit — ${influencer?.name}` : 'Add New Influencer'}
+      primaryButtonText={isEdit ? 'Save Changes' : 'Add Influencer'}
+      secondaryButtonText="Cancel"
+      onSecondarySubmit={onClose}
+      size="sm"
+    >
+      <div className="hub-form-grid">
+        <TextInput
+          id="inf-name" labelText="Name *" value={form.name}
+          onChange={e => set('name', e.target.value)}
+          invalid={form.name.trim() === ''} invalidText="Name is required"
+        />
+        <Select id="inf-type" labelText="Type" value={form.type} onChange={e => set('type', e.target.value)}>
+          <SelectItem value="external" text="External" />
+          <SelectItem value="internal" text="IBM Social League" />
+        </Select>
+        <Select id="inf-status" labelText="Status" value={form.status} onChange={e => set('status', e.target.value)}>
+          <SelectItem value="active" text="Active" />
+          <SelectItem value="dormant" text="Dormant" />
+          <SelectItem value="dnu" text="Do Not Use" />
+        </Select>
+        <Select id="inf-approval" labelText="Approval" value={form.approval_status} onChange={e => set('approval_status', e.target.value)}>
+          <SelectItem value="pending" text="Pending" />
+          <SelectItem value="approved" text="Approved" />
+          <SelectItem value="declined" text="Declined" />
+        </Select>
+        <Select id="inf-persona" labelText="Persona Group" value={form.persona_group} onChange={e => set('persona_group', e.target.value)} className="hub-form-full">
+          {['Developer / Engineer','Data & AI Specialist','Cybersecurity Expert','C-Suite / Executive','Entrepreneur / Founder','Thought Leader (Author, Speaker, Analyst)','Media / Content Creator (Podcast, YouTube)','Educator / Researcher','Sustainability / Climate','FinTech / Finance'].map(p => (
+            <SelectItem key={p} value={p} text={p} />
+          ))}
+        </Select>
+        <TextInput
+          id="inf-location" labelText="Location" value={form.location}
+          onChange={e => set('location', e.target.value)}
+          className="hub-form-full"
+        />
+        <TextInput
+          id="inf-owner" labelText="IBM Point of Contact" value={form.owner}
+          onChange={e => set('owner', e.target.value)}
+          className="hub-form-full"
+        />
+        <TextArea
+          id="inf-bio" labelText="Bio" value={form.bio}
+          onChange={e => set('bio', e.target.value)}
+          rows={3} className="hub-form-full"
+        />
+      </div>
+    </Modal>
+  );
+}
+
 // ── Influencer Card (Carbon Tile) ─────────────────────────────────────────────
 
-function InfluencerCard({ influencer, selected, onClick }) {
+function InfluencerCard({ influencer, selected, onClick, onEdit }) {
   const totalFollowers = (influencer.platforms || []).reduce((s, p) => s + (p.follower_count || 0), 0);
   const hasContent = influencer.content?.length > 0;
 
@@ -183,7 +282,15 @@ function InfluencerCard({ influencer, selected, onClick }) {
           <p className="hub-card-name">{influencer.name}</p>
           <p className="hub-card-meta">{influencer.persona_group} · {influencer.location}</p>
         </div>
-        <StatusTag status={influencer.status} />
+        <div className="hub-card-top-actions">
+          <StatusTag status={influencer.status} />
+          <button
+            className="hub-edit-btn"
+            title="Edit influencer"
+            onClick={e => { e.stopPropagation(); onEdit(influencer); }}
+            aria-label={`Edit ${influencer.name}`}
+          >✎</button>
+        </div>
       </div>
       <div className="hub-card-tags">
         <TypeTag type={influencer.type} />
@@ -257,7 +364,7 @@ function FilterSelect({ label, value, options, onChange }) {
   );
 }
 
-function LeftPanel({ influencers, selectedId, onSelect, onSearch, onFilter, filters, searchQuery, onViewFeed }) {
+function LeftPanel({ influencers, selectedId, onSelect, onSearch, onFilter, filters, searchQuery, onViewFeed, onAdd, onEdit }) {
   return (
     <div className="hub-left-panel">
       <div className="hub-filters">
@@ -312,7 +419,10 @@ function LeftPanel({ influencers, selectedId, onSelect, onSearch, onFilter, filt
         </Button>
       </div>
 
-      <p className="hub-list-count">{influencers.length} influencer{influencers.length !== 1 ? 's' : ''}</p>
+      <div className="hub-list-header">
+        <p className="hub-list-count">{influencers.length} influencer{influencers.length !== 1 ? 's' : ''}</p>
+        <Button kind="primary" size="sm" onClick={onAdd} className="hub-add-btn">+ Add</Button>
+      </div>
 
       <div className="hub-card-list">
         {influencers.length === 0 && (
@@ -322,7 +432,7 @@ function LeftPanel({ influencers, selectedId, onSelect, onSearch, onFilter, filt
         )}
         {influencers.map(inf => (
           <InfluencerCard key={inf.id} influencer={inf}
-            selected={selectedId === inf.id} onClick={() => onSelect(inf.id)} />
+            selected={selectedId === inf.id} onClick={() => onSelect(inf.id)} onEdit={onEdit} />
         ))}
       </div>
     </div>
@@ -382,7 +492,7 @@ function OverviewTab({ influencer, onRequestRate }) {
 
       <div className="hub-section hub-meta-row">
         <Tile className="hub-meta-tile">
-          <p className="hub-section-label">Relationship Owner</p>
+          <p className="hub-section-label">IBM Point of Contact</p>
           <p className="hub-body-text">{influencer.owner || '—'}</p>
         </Tile>
         <Tile className="hub-meta-tile">
@@ -554,7 +664,7 @@ function ContentTab({ influencer }) {
                     {c.ibm_partner_confirmed && <Tag type="blue" size="sm" style={{ marginLeft: '0.5rem' }}>#IBMPartner</Tag>}
                   </StructuredListCell>
                   <StructuredListCell>{c.ibm_product_tag || '—'}</StructuredListCell>
-                  <StructuredListCell style={{ whiteSpace: 'nowrap' }}>{c.post_date}</StructuredListCell>
+                  <StructuredListCell style={{ whiteSpace: 'nowrap' }}>{fmtDate(c.post_date)}</StructuredListCell>
                   <StructuredListCell style={{ whiteSpace: 'nowrap' }}>{fmt(c.views)}</StructuredListCell>
                   <StructuredListCell style={{ whiteSpace: 'nowrap' }}>{c.engagement_rate != null ? c.engagement_rate.toFixed(2) + '%' : '—'}</StructuredListCell>
                   <StructuredListCell>
@@ -605,7 +715,7 @@ function FeedbackTab({ influencer }) {
 
 // ── Profile View (Right Panel) ────────────────────────────────────────────────
 
-function ProfileView({ influencerId }) {
+function ProfileView({ influencerId, localOverrides = {} }) {
   const [influencer, setInfluencer] = useState(null);
   const [loading, setLoading]       = useState(false);
   const [rateOpen, setRateOpen]     = useState(false);
@@ -613,11 +723,24 @@ function ProfileView({ influencerId }) {
 
   useEffect(() => {
     if (!influencerId) { setInfluencer(null); return; }
+    // Local-only influencers (id starts with "local-") don't exist on the server
+    if (String(influencerId).startsWith('local-')) {
+      const override = localOverrides[influencerId] || {};
+      setInfluencer({
+        id: influencerId, score: {}, platforms: [], content: [],
+        events: [], campaign_types: [], feedback: [], ...override,
+      });
+      return;
+    }
     setLoading(true);
     fetch(`${API}/influencers/${influencerId}`)
       .then(r => r.json())
-      .then(d => { setInfluencer(d); setLoading(false); });
-  }, [influencerId]);
+      .then(d => {
+        const merged = localOverrides[influencerId] ? { ...d, ...localOverrides[influencerId] } : d;
+        setInfluencer(merged);
+        setLoading(false);
+      });
+  }, [influencerId, localOverrides]); // eslint-disable-line
 
   async function fetchRate() {
     const r = await fetch(`${API}/influencers/${influencerId}/rate`);
@@ -718,10 +841,23 @@ function ProfileView({ influencerId }) {
 
 // ── Global Feed ───────────────────────────────────────────────────────────────
 
+const FEED_COLS = [
+  { key: 'influencer_name', label: 'Creator' },
+  { key: 'platform',        label: 'Platform' },
+  { key: 'title',           label: 'Title' },
+  { key: 'ibm_product_tag', label: 'IBM Product' },
+  { key: 'post_date',       label: 'Date' },
+  { key: 'views',           label: 'Views' },
+  { key: 'engagement_rate', label: 'ER' },
+  { key: null,              label: 'Link' },
+];
+
 function GlobalFeed({ onClose }) {
-  const [feed, setFeed]     = useState([]);
+  const [feed, setFeed]         = useState([]);
   const [platform, setPlatform] = useState('');
   const [product, setProduct]   = useState('');
+  const [sortCol, setSortCol]   = useState('post_date');
+  const [sortDir, setSortDir]   = useState('desc');
 
   useEffect(() => {
     const p = new URLSearchParams();
@@ -732,14 +868,30 @@ function GlobalFeed({ onClose }) {
 
   const PROD_ITEMS = mkItems(['All Products','watsonx.ai','watsonx.governance','IBM Cloud','Red Hat OpenShift','Granite 4.0']);
 
+  function handleSort(key) {
+    if (!key) return;
+    if (sortCol === key) {
+      setSortDir(d => d === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortCol(key);
+      setSortDir('asc');
+    }
+  }
+
+  const sorted = [...feed].sort((a, b) => {
+    const av = a[sortCol] ?? '';
+    const bv = b[sortCol] ?? '';
+    const cmp = typeof av === 'number' && typeof bv === 'number'
+      ? av - bv
+      : String(av).localeCompare(String(bv));
+    return sortDir === 'asc' ? cmp : -cmp;
+  });
+
   return (
     <div className="hub-right-panel hub-feed-view">
-      <div className="hub-feed-header">
-        <div>
-          <h2 className="hub-heading-lg">#IBMPartner Global Content Feed</h2>
-          <p className="hub-muted">Every IBM-sponsored post, across all creators — {feed.length} posts</p>
-        </div>
-        <Button kind="ghost" size="sm" onClick={onClose}>← Back to profiles</Button>
+      <div style={{ marginBottom: '1.25rem' }}>
+        <h2 className="hub-heading-lg">#IBMPartner Global Content Feed</h2>
+        <p className="hub-muted">Every IBM-sponsored post, across all creators — {feed.length} posts</p>
       </div>
 
       <div className="hub-feed-filters">
@@ -762,18 +914,38 @@ function GlobalFeed({ onClose }) {
             <StructuredListWrapper>
               <StructuredListHead>
                 <StructuredListRow head>
-                  <StructuredListCell head>Creator</StructuredListCell>
-                  <StructuredListCell head>Platform</StructuredListCell>
-                  <StructuredListCell head>Title</StructuredListCell>
-                  <StructuredListCell head>IBM Product</StructuredListCell>
-                  <StructuredListCell head>Date</StructuredListCell>
-                  <StructuredListCell head>Views</StructuredListCell>
-                  <StructuredListCell head>ER</StructuredListCell>
-                  <StructuredListCell head>Link</StructuredListCell>
+                  {FEED_COLS.map(col => {
+                    const active = col.key && sortCol === col.key;
+                    return (
+                      <StructuredListCell
+                        key={col.label}
+                        head
+                        className={col.key ? 'hub-th-sortable' : ''}
+                        onClick={() => handleSort(col.key)}
+                      >
+                        <span className="hub-th-inner">
+                          {col.label}
+                          {col.key && (
+                            <svg
+                              className={`hub-sort-arrow${active ? ' hub-sort-arrow--active' : ''}${active && sortDir === 'desc' ? ' hub-sort-arrow--desc' : ''}`}
+                              xmlns="http://www.w3.org/2000/svg"
+                              viewBox="0 0 10 12"
+                              width="10" height="12"
+                              fill="none"
+                              aria-hidden="true"
+                            >
+                              <line x1="5" y1="1" x2="5" y2="11" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+                              <polyline points="1,7 5,11 9,7" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                            </svg>
+                          )}
+                        </span>
+                      </StructuredListCell>
+                    );
+                  })}
                 </StructuredListRow>
               </StructuredListHead>
               <StructuredListBody>
-                {feed.map(e => (
+                {sorted.map(e => (
                   <StructuredListRow key={e.id}>
                     <StructuredListCell>
                       <Tag type={e.influencer_type === 'internal' ? 'blue' : 'cool-gray'} size="sm">
@@ -783,7 +955,7 @@ function GlobalFeed({ onClose }) {
                     <StructuredListCell><PlatformTag platform={e.platform} /></StructuredListCell>
                     <StructuredListCell style={{ maxWidth: 260 }}>{e.title || e.content_type}</StructuredListCell>
                     <StructuredListCell>{e.ibm_product_tag || '—'}</StructuredListCell>
-                    <StructuredListCell>{e.post_date}</StructuredListCell>
+                    <StructuredListCell style={{ whiteSpace: 'nowrap' }}>{fmtDate(e.post_date)}</StructuredListCell>
                     <StructuredListCell>{fmt(e.views)}</StructuredListCell>
                     <StructuredListCell>{e.engagement_rate != null ? e.engagement_rate.toFixed(2) + '%' : '—'}</StructuredListCell>
                     <StructuredListCell>
@@ -805,11 +977,13 @@ function GlobalFeed({ onClose }) {
 export default function App() {
   const [stats, setStats]       = useState(null);
   const [influencers, setList]  = useState([]);
+  const [localOverrides, setLocalOverrides] = useState({}); // id -> patched fields
   const [selectedId, setSelected] = useState(null);
   const [searchQuery, setSearch] = useState('');
   const [filters, setFilters]   = useState({ type:'', status:'', platform:'', approval_status:'', persona_group:'', has_content:'', campaign_type:'', events:'' });
   const [showFeed, setShowFeed] = useState(false);
   const [sideNavExpanded, setSideNavExpanded] = useState(false);
+  const [formModal, setFormModal] = useState({ open: false, influencer: null });
   const nlTimer = useRef(null);
 
   useEffect(() => {
@@ -842,9 +1016,41 @@ export default function App() {
     }
   }, [filters, searchQuery]); // eslint-disable-line
 
+  // Apply local overrides on top of server list
+  const displayList = influencers.map(inf =>
+    localOverrides[inf.id] ? { ...inf, ...localOverrides[inf.id] } : inf
+  );
+
   const handleSelect = useCallback((id) => { setSelected(id); setShowFeed(false); }, []);
   const handleFilter = useCallback((k, v) => setFilters(prev => ({ ...prev, [k]: v })), []);
   const handleViewFeed = useCallback(() => setShowFeed(true), []);
+  const handleOpenAdd  = useCallback(() => setFormModal({ open: true, influencer: null }), []);
+  const handleOpenEdit = useCallback((inf) => setFormModal({ open: true, influencer: inf }), []);
+  const handleCloseForm = useCallback(() => setFormModal({ open: false, influencer: null }), []);
+
+  function handleFormSave(formData) {
+    if (formModal.influencer) {
+      // Edit: store override
+      setLocalOverrides(prev => ({
+        ...prev,
+        [formModal.influencer.id]: { ...prev[formModal.influencer.id], ...formData },
+      }));
+    } else {
+      // Add: prepend a synthetic influencer to the list
+      const newInf = {
+        id: `local-${Date.now()}`,
+        score: {},
+        platforms: [],
+        content: [],
+        events: [],
+        campaign_types: [],
+        feedback: [],
+        ...formData,
+      };
+      setList(prev => [newInf, ...prev]);
+    }
+    setFormModal({ open: false, influencer: null });
+  }
 
   return (
     <>
@@ -862,7 +1068,7 @@ export default function App() {
         <StatsBar stats={stats} />
         <div className="hub-main">
           <LeftPanel
-            influencers={influencers}
+            influencers={displayList}
             selectedId={selectedId}
             onSelect={handleSelect}
             onSearch={setSearch}
@@ -870,13 +1076,22 @@ export default function App() {
             filters={filters}
             searchQuery={searchQuery}
             onViewFeed={handleViewFeed}
+            onAdd={handleOpenAdd}
+            onEdit={handleOpenEdit}
           />
           {showFeed
             ? <GlobalFeed onClose={() => setShowFeed(false)} />
-            : <ProfileView influencerId={selectedId} />
+            : <ProfileView influencerId={selectedId} localOverrides={localOverrides} />
           }
         </div>
       </Content>
+
+      <InfluencerFormModal
+        open={formModal.open}
+        influencer={formModal.influencer}
+        onClose={handleCloseForm}
+        onSave={handleFormSave}
+      />
     </>
   );
 }
