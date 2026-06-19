@@ -3,6 +3,7 @@
 > BOB-athon 2026 · IBM Marketing Interns  
 > Stack: React · `@carbon/react` · Node.js / Express · IBM Design System
 
+> Created by: Pranav Chittharanjan, Kelly Poon, Kashish Lalmohammed, Munsoor Shaikh, Miguel Velazquez
 ---
 
 ## Prerequisites
