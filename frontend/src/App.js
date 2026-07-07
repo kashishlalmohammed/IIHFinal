@@ -547,7 +547,7 @@ const CAMPAIGN_TYPE_OPTIONS = [
 ];
 
 const EVENT_OPTIONS = [
-  { value: '', text: 'All Events' },
+  { value: '', text: 'All Campaigns' },
   ...['AI Summit Korea','AWS re:Invent','Dreamforce','Ferrari / F1','Gartner Data & Analytics',
      'GRAMMYs','IBM Accelerate','IBM Think','IBM TechXchange','KubeCon','Masters',
      'Mobile World Congress','NFL','NRF','NY Tech Week','SIBOS','SXSW','US Open','VivaTech','Wimbledon',
