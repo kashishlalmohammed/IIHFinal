@@ -647,6 +647,23 @@
 }
 .hub-feedback-delete:hover { opacity: 1; }
 
+.hub-feedback-confirm {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-top: 0.5rem;
+}
+
+.hub-feedback-cancel-delete {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 0.75rem;
+  color: var(--cds-text-secondary);
+  padding: 0;
+}
+.hub-feedback-cancel-delete:hover { text-decoration: underline; }
+
 .hub-feedback-author {
   font-size: 0.8125rem;
   font-weight: 600;

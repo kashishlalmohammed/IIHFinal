@@ -886,6 +886,7 @@ function FeedbackTab({ influencer }) {
   const [open, setOpen]       = useState(false);
   const [form, setForm]       = useState({ author: '', body: '' });
   const [saving, setSaving]   = useState(false);
+  const [confirmId, setConfirmId] = useState(null);
 
   function setF(k, v) { setForm(prev => ({ ...prev, [k]: v })); }
 
@@ -951,11 +952,21 @@ function FeedbackTab({ influencer }) {
               <span className="hub-muted">{f.created_at}</span>
             </div>
             <p className="hub-body-text" style={{ marginTop: '0.25rem' }}>{f.body}</p>
-            <button
-              className="hub-feedback-delete"
-              onClick={() => handleDelete(f.id)}
-              aria-label="Delete feedback"
-            >✕</button>
+            {confirmId === f.id
+              ? (
+                <div className="hub-feedback-confirm">
+                  <span className="hub-muted" style={{ fontSize: '0.8125rem' }}>This is permanent. Are you sure?</span>
+                  <button className="hub-feedback-delete" onClick={() => handleDelete(f.id)}>Yes, delete</button>
+                  <button className="hub-feedback-cancel-delete" onClick={() => setConfirmId(null)}>Cancel</button>
+                </div>
+              ) : (
+                <button
+                  className="hub-feedback-delete"
+                  onClick={() => setConfirmId(f.id)}
+                  aria-label="Delete feedback"
+                >✕ Delete</button>
+              )
+            }
           </Tile>
         ))
       }
