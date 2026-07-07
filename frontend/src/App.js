@@ -510,11 +510,6 @@ function LeftPanel({ influencers, selectedId, onSelect, onSearch, onFilter, filt
         <p className="hub-search-hint">Search by name</p>
 
         <div className="hub-filter-grid">
-          <FilterSelect label="Type" value={filters.type} options={[
-            { value:'', text:'All Types' },
-            { value:'internal', text:'IBM Social League' },
-            { value:'external', text:'External' },
-          ]} onChange={v => onFilter('type', v)} />
           <FilterSelect label="Platform" value={filters.platform} options={[
             { value:'', text:'All Platforms' },
             ...['YouTube','TikTok','Instagram','X','LinkedIn','Reddit'].map(p => ({ value:p, text:p })),
