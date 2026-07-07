@@ -407,6 +407,22 @@ function listSocialLeague({ q, member_identity, collaborate, geo, business_unit,
   return db.prepare('SELECT * FROM social_league ' + where + ' ORDER BY followers DESC, name ASC').all(...params);
 }
 
+function updateSocialLeagueMember(id, { name, title, linkedin, email, member_identity, collaborate, followers, location, business_unit, w3, talks_about_ai }) {
+  db.prepare(`
+    UPDATE social_league
+    SET name = ?, title = ?, linkedin = ?, email = ?, member_identity = ?,
+        collaborate = ?, followers = ?, location = ?, business_unit = ?, w3 = ?, talks_about_ai = ?
+    WHERE id = ?
+  `).run(
+    name ?? null, title ?? null, linkedin ?? null, email ?? null, member_identity ?? null,
+    collaborate ?? null, followers != null ? parseInt(followers, 10) || 0 : null,
+    location ?? null, business_unit ?? null, w3 ?? null,
+    talks_about_ai != null ? (talks_about_ai ? 1 : 0) : 0,
+    id
+  );
+  return db.prepare('SELECT * FROM social_league WHERE id = ?').get(id);
+}
+
 module.exports = {
   createInfluencer,
   deleteInfluencer,
@@ -423,4 +439,5 @@ module.exports = {
   listInfluencers,
   searchInfluencers,
   listSocialLeague,
+  updateSocialLeagueMember,
 };

@@ -11,6 +11,7 @@ const {
   saveFeedback,
   deleteFeedback,
   listSocialLeague,
+  updateSocialLeagueMember,
   getContentFeed,
   getInfluencerById,
   getInfluencerContent,
@@ -30,6 +31,16 @@ app.use(express.static(uiBuild));
 
 app.get('/api/social-league', (req, res) => {
   res.json(listSocialLeague(req.query));
+});
+
+app.put('/api/social-league/:id', (req, res) => {
+  try {
+    const updated = updateSocialLeagueMember(req.params.id, req.body);
+    if (!updated) return res.status(404).json({ error: 'Not found' });
+    res.json(updated);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 app.get('/api/stats', (req, res) => {

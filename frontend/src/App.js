@@ -1143,6 +1143,62 @@ const IDENTITY_COLORS = {
 
 const SL_BUSINESS_UNITS = ['CHQ','Consulting','Data and AI','Ecosystem','Finance and Operations','Infrastructure & Hybrid Cloud','Quantum','Research','Sales','Security','Software'];
 
+function SocialLeagueEditModal({ open, member, onClose, onSave }) {
+  const [form, setForm] = useState({});
+
+  useEffect(() => {
+    if (member) setForm({
+      name:            member.name || '',
+      title:           member.title || '',
+      location:        member.location || '',
+      business_unit:   member.business_unit || '',
+      email:           member.email || '',
+      linkedin:        member.linkedin || '',
+      w3:              member.w3 || '',
+      followers:       member.followers != null ? String(member.followers) : '',
+      member_identity: member.member_identity || '',
+      collaborate:     member.collaborate || '',
+      talks_about_ai:  member.talks_about_ai === 1 ? '1' : '0',
+    });
+  }, [member]);
+
+  function set(k, v) { setForm(f => ({ ...f, [k]: v })); }
+
+  function handleSubmit() {
+    onSave({ ...form, followers: parseInt(form.followers, 10) || 0, talks_about_ai: form.talks_about_ai === '1' ? 1 : 0 });
+  }
+
+  return (
+    <Modal open={open} onRequestClose={onClose} onRequestSubmit={handleSubmit}
+      modalHeading="Edit Social League Member" primaryButtonText="Save" secondaryButtonText="Cancel"
+      onSecondarySubmit={onClose} size="sm">
+      <TextInput id="sl-name"     labelText="Name"          value={form.name || ''}          onChange={e => set('name', e.target.value)}          style={{ marginBottom: '1rem' }} />
+      <TextInput id="sl-title"    labelText="Title"         value={form.title || ''}         onChange={e => set('title', e.target.value)}         style={{ marginBottom: '1rem' }} />
+      <TextInput id="sl-location" labelText="Location"      value={form.location || ''}      onChange={e => set('location', e.target.value)}      style={{ marginBottom: '1rem' }} />
+      <Select    id="sl-bu"       labelText="Business Unit" value={form.business_unit || ''} onChange={e => set('business_unit', e.target.value)} style={{ marginBottom: '1rem' }}>
+        <SelectItem value="" text="—" />
+        {SL_BUSINESS_UNITS.map(u => <SelectItem key={u} value={u} text={u} />)}
+      </Select>
+      <TextInput id="sl-email"    labelText="Email"         value={form.email || ''}         onChange={e => set('email', e.target.value)}         style={{ marginBottom: '1rem' }} />
+      <TextInput id="sl-linkedin" labelText="LinkedIn URL"  value={form.linkedin || ''}      onChange={e => set('linkedin', e.target.value)}      style={{ marginBottom: '1rem' }} />
+      <TextInput id="sl-w3"       labelText="w3 Profile URL" value={form.w3 || ''}           onChange={e => set('w3', e.target.value)}            style={{ marginBottom: '1rem' }} />
+      <TextInput id="sl-followers" labelText="LinkedIn Followers" value={form.followers || ''} onChange={e => set('followers', e.target.value)}  style={{ marginBottom: '1rem' }} />
+      <Select id="sl-identity"   labelText="Member Identity" value={form.member_identity || ''} onChange={e => set('member_identity', e.target.value)} style={{ marginBottom: '1rem' }}>
+        <SelectItem value="" text="—" />
+        {['Superstars','Engager','Observer','Reserved -'].map(v => <SelectItem key={v} value={v} text={v} />)}
+      </Select>
+      <Select id="sl-collaborate" labelText="Collaborates with SM+I" value={form.collaborate || ''} onChange={e => set('collaborate', e.target.value)} style={{ marginBottom: '1rem' }}>
+        <SelectItem value="" text="—" />
+        {['Yes','Recommended','No'].map(v => <SelectItem key={v} value={v} text={v} />)}
+      </Select>
+      <Select id="sl-ai" labelText="Talks about AI" value={form.talks_about_ai || '0'} onChange={e => set('talks_about_ai', e.target.value)}>
+        <SelectItem value="0" text="No" />
+        <SelectItem value="1" text="Yes" />
+      </Select>
+    </Modal>
+  );
+}
+
 function SocialLeagueView() {
   const [members, setMembers]               = useState([]);
   const [loading, setLoading]               = useState(true);
@@ -1153,6 +1209,7 @@ function SocialLeagueView() {
   const [filterBU, setFilterBU]             = useState('');
   const [filterAI, setFilterAI]             = useState('');
   const [selected, setSelected]             = useState(null);
+  const [editModal, setEditModal]           = useState(false);
   const searchTimer = useRef(null);
 
   useEffect(() => {
@@ -1173,6 +1230,19 @@ function SocialLeagueView() {
   }, [search, filterIdentity, filterCollaborate, filterGeo, filterBU, filterAI]); // eslint-disable-line
 
   const selectedMember = members.find(m => m.id === selected) || null;
+
+  async function handleSave(formData) {
+    const r = await fetch(`${API}/social-league/${selectedMember.id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(formData),
+    });
+    if (r.ok) {
+      const updated = await r.json();
+      setMembers(prev => prev.map(m => m.id === updated.id ? updated : m));
+    }
+    setEditModal(false);
+  }
 
   return (
     <div className="hub-main">
@@ -1265,6 +1335,7 @@ function SocialLeagueView() {
                   &nbsp;·&nbsp; {fmt(selectedMember.followers)} LinkedIn followers
                 </p>
               </div>
+              <button className="hub-edit-btn" title="Edit member" onClick={() => setEditModal(true)} aria-label={`Edit ${selectedMember.name}`}>✎</button>
             </div>
           </div>
           <div className="hub-tab-content" style={{ padding: '1.5rem 2rem' }}>
@@ -1309,6 +1380,12 @@ function SocialLeagueView() {
           </Tile>
         </div>
       )}
+      <SocialLeagueEditModal
+        open={editModal}
+        member={selectedMember}
+        onClose={() => setEditModal(false)}
+        onSave={handleSave}
+      />
     </div>
   );
 }
