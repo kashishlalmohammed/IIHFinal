@@ -1303,6 +1303,12 @@ function SocialLeagueView() {
                 </div>
                 <div className="hub-card-top-actions">
                   <Tag type={IDENTITY_COLORS[m.member_identity] || 'gray'} size="sm">{m.member_identity}</Tag>
+                  <button
+                    className="hub-edit-btn"
+                    title="Edit member"
+                    onClick={e => { e.stopPropagation(); setSelected(m.id); setEditModal(true); }}
+                    aria-label={`Edit ${m.name}`}
+                  >✎</button>
                 </div>
               </div>
               <div className="hub-card-footer" style={{ marginTop: '0.375rem' }}>
