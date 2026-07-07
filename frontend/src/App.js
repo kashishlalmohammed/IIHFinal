@@ -176,7 +176,7 @@ function StatsBar({ stats }) {
 // ── Influencer Form Modal (Add / Edit) ────────────────────────────────────────
 
 const BLANK_FORM = {
-  name: '', type: 'external', persona_group: 'Developer / Engineer',
+  name: '', type: 'external', persona_group: 'Developer',
   location: '', bio: '', status: 'active', approval_status: 'pending', owner: '',
 };
 
@@ -241,7 +241,7 @@ function InfluencerFormModal({ open, influencer, onClose, onSave, onDelete }) {
           <SelectItem value="declined" text="Declined" />
         </Select>
         <Select id="inf-persona" labelText="Persona Group" value={form.persona_group} onChange={e => set('persona_group', e.target.value)} className="hub-form-full">
-          {['Developer / Engineer','Data & AI Specialist','Cybersecurity Expert','C-Suite / Executive','Entrepreneur / Founder','Thought Leader (Author, Speaker, Analyst)','Media / Content Creator (Podcast, YouTube)','Educator / Researcher','Sustainability / Climate','FinTech / Finance'].map(p => (
+          {['Developer','AI Decision Makers','Data Leaders','Secure','Infrastructure','Industry','Sports, Entertainment, and Partnerships','CxO programs','Digital Sovereignty'].map(p => (
             <SelectItem key={p} value={p} text={p} />
           ))}
         </Select>
@@ -593,7 +593,7 @@ function LeftPanel({ influencers, selectedId, onSelect, onSearch, onFilter, filt
           ]} onChange={v => onFilter('platform', v)} />
           <FilterSelect label="Persona" value={filters.persona_group} options={[
             { value:'', text:'All Personas' },
-            ...['Developer / Engineer','Data & AI Specialist','Cybersecurity Expert','C-Suite / Executive','Entrepreneur / Founder','Thought Leader (Author, Speaker, Analyst)','Media / Content Creator (Podcast, YouTube)','Educator / Researcher','Sustainability / Climate','FinTech / Finance'].map(p => ({ value:p, text:p })),
+            ...['Developer','AI Decision Makers','Data Leaders','Secure','Infrastructure','Industry','Sports, Entertainment, and Partnerships','CxO programs','Digital Sovereignty'].map(p => ({ value:p, text:p })),
           ]} onChange={v => onFilter('persona_group', v)} />
           <FilterSelect label="Events" value={filters.events} options={EVENT_OPTIONS}
             onChange={v => onFilter('events', v)} />
