@@ -42,63 +42,6 @@ function fmtDate(raw) {
   return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
 }
 
-function scoreColor(s) {
-  if (s >= 8.5) return '#24a148';
-  if (s >= 7.0) return '#0f62fe';
-  if (s >= 5.0) return '#f1c21b';
-  return '#da1e28';
-}
-
-function scoreLabel(s) {
-  if (s >= 8.5) return 'Strong — activate for next campaign';
-  if (s >= 7.0) return 'Good — worth re-engaging';
-  if (s >= 5.0) return 'Moderate — evaluate case by case';
-  return 'Low — do not re-engage';
-}
-
-// ── Score Ring (SVG) ──────────────────────────────────────────────────────────
-
-function ScoreRing({ score, size = 48, fontSize = 13, animate = false }) {
-  const r = (size - 8) / 2;
-  const circ = 2 * Math.PI * r;
-  const fill = ((score || 0) / 10) * circ;
-  const color = scoreColor(score || 0);
-  // Force CSS animation to restart by remounting via a key tied to the score
-  const [animKey, setAnimKey] = useState(0);
-  const prevScore = useRef(null);
-
-  useEffect(() => {
-    if (animate && score !== prevScore.current) {
-      prevScore.current = score;
-      setAnimKey(k => k + 1);
-    }
-  }, [animate, score]);
-
-  return (
-    <svg width={size} height={size} style={{ transform: 'rotate(-90deg)', flexShrink: 0 }}>
-      <circle cx={size/2} cy={size/2} r={r} fill="none" stroke="#e0e0e0" strokeWidth={5} />
-      <circle
-        key={animate ? animKey : undefined}
-        cx={size/2} cy={size/2} r={r}
-        fill="none" stroke={color} strokeWidth={5}
-        strokeLinecap="round"
-        strokeDasharray={`${circ} ${circ}`}
-        strokeDashoffset={circ - fill}
-        style={animate ? {
-          animation: `hub-ring-draw 1.6s cubic-bezier(0, 0, 0.2, 1) forwards`,
-          '--ring-from': circ,
-          '--ring-to': circ - fill,
-        } : undefined}
-      />
-      <text x="50%" y="50%" textAnchor="middle" dominantBaseline="central"
-        style={{ transform:'rotate(90deg)', transformOrigin:'50% 50%',
-          fill: color, fontSize: `${fontSize}px`, fontWeight: 600, fontFamily: 'IBM Plex Sans, sans-serif' }}>
-        {score != null ? score.toFixed(1) : '—'}
-      </text>
-    </svg>
-  );
-}
-
 // ── Status / Approval / Type badges as Carbon Tags ────────────────────────────
 
 const STATUS_TYPE = { active: 'green', dormant: 'yellow', dnu: 'red' };
@@ -480,7 +423,6 @@ function InfluencerCard({ influencer, selected, onClick, onEdit }) {
       onClick={onClick}
     >
       <div className="hub-card-top">
-        <ScoreRing score={influencer.score?.composite} size={48} fontSize={11} />
         <div className="hub-card-info">
           <p className="hub-card-name">{influencer.name}</p>
           <p className="hub-card-meta">{influencer.persona_group} · {influencer.location}</p>
@@ -707,68 +649,6 @@ function OverviewTab({ influencer, onRequestRate }) {
           </Button>
         </div>
       )}
-    </div>
-  );
-}
-
-// ── Scorecard Tab ─────────────────────────────────────────────────────────────
-
-function ScorecardTab({ influencer }) {
-  const s = influencer.score || {};
-  const isInternal = influencer.type === 'internal';
-
-  const metrics = [
-    { label: 'Engagement Rate',           value: s.engagement_score, weight: isInternal ? '40%' : '35%' },
-    { label: 'Reach / Impressions',       value: s.reach_score,      weight: isInternal ? '30%' : '25%' },
-    { label: 'Content Quality & Brand Fit', value: s.quality_score,  weight: '20%' },
-    !isInternal && { label: 'Cost Efficiency (CPE)', value: s.cost_score, weight: '20%' },
-    isInternal  && { label: 'Advocacy Consistency',  value: s.advocacy_score, weight: '10%' },
-  ].filter(Boolean);
-
-  function barColor(v) {
-    if (v >= 8.5) return '#24a148';
-    if (v >= 7.0) return '#0f62fe';
-    if (v >= 5.0) return '#f1c21b';
-    return '#da1e28';
-  }
-
-  return (
-    <div className="hub-tab-content">
-      <div className="hub-scorecard-layout">
-        <div className="hub-score-hero">
-          <ScoreRing score={s.composite} size={120} fontSize={22} animate />
-          <p className="hub-score-label" style={{ color: scoreColor(s.composite || 0) }}>
-            {scoreLabel(s.composite || 0)}
-          </p>
-        </div>
-        <div className="hub-metrics">
-          {metrics.map(m => (
-            <div key={m.label} className="hub-metric-bar">
-              <div className="hub-metric-header">
-                <span className="hub-metric-label">{m.label} <span className="hub-muted">({m.weight})</span></span>
-                <span className="hub-muted">{m.value != null ? m.value.toFixed(1) + ' / 10' : 'N/A'}</span>
-              </div>
-              <div className="hub-progress-track">
-                {m.value != null && (
-                  <div className="hub-progress-fill"
-                    style={{ width: `${(m.value / 10) * 100}%`, background: barColor(m.value) }} />
-                )}
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      <details className="hub-methodology">
-        <summary>Scoring methodology</summary>
-        <div className="hub-methodology-body">
-          Raw follower counts are excluded. Engagement Rate = interactions ÷ reach, normalized against peer group.
-          Reach is indexed to peer average. Content Quality uses watsonx sentiment on comments + IBM alignment.
-          {isInternal ? ' Internal creators use Advocacy Consistency instead of CPE.' : ' CPE = cost per engagement vs. IBM benchmark.'}
-          <br /><br />
-          <strong>Thresholds:</strong> 8.5–10 Strong · 7.0–8.4 Good · 5.0–6.9 Moderate · &lt;5.0 Low
-        </div>
-      </details>
     </div>
   );
 }
@@ -1026,7 +906,6 @@ function ProfileView({ influencerId, localOverrides = {} }) {
       {/* Dark profile header */}
       <div className="hub-profile-header">
         <div className="hub-profile-header-top">
-          <ScoreRing score={influencer.score?.composite} size={80} fontSize={18} />
           <div className="hub-profile-header-info">
             <h1 className="hub-profile-name">{influencer.name}</h1>
             <div className="hub-profile-badges">
@@ -1057,16 +936,12 @@ function ProfileView({ influencerId, localOverrides = {} }) {
         <Tabs>
           <TabList aria-label="Profile sections" contained>
             <Tab>Overview</Tab>
-            <Tab>Scorecard</Tab>
             <Tab>Past IBM Content</Tab>
             <Tab>Feedback</Tab>
           </TabList>
           <TabPanels>
             <TabPanel style={{ padding: 0 }}>
               <OverviewTab influencer={influencer} onRequestRate={fetchRate} />
-            </TabPanel>
-            <TabPanel style={{ padding: 0 }}>
-              <ScorecardTab influencer={influencer} />
             </TabPanel>
             <TabPanel style={{ padding: 0 }}>
               <ContentTab influencer={influencer} />
