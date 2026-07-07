@@ -1405,11 +1405,16 @@ export default function App() {
 
   async function handleFormSave(formData) {
     if (formModal.influencer) {
-      // Edit: store override locally (no backend edit endpoint yet)
-      setLocalOverrides(prev => ({
-        ...prev,
-        [formModal.influencer.id]: { ...prev[formModal.influencer.id], ...formData },
-      }));
+      // Edit: persist to backend
+      const r = await fetch(`${API}/influencers/${formModal.influencer.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(formData),
+      });
+      if (r.ok) {
+        const updated = await r.json();
+        setList(prev => prev.map(i => i.id === updated.id ? updated : i));
+      }
     } else {
       // Add: persist to backend
       const r = await fetch(`${API}/influencers`, {
