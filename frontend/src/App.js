@@ -503,11 +503,11 @@ function LeftPanel({ influencers, selectedId, onSelect, onSearch, onFilter, filt
           id="influencer-search"
           size="lg"
           labelText="Search"
-          placeholder='e.g. "watsonx developer"'
+          placeholder='e.g. "Shelby Jackson"'
           value={searchQuery}
           onChange={e => onSearch(e.target.value)}
         />
-        <p className="hub-search-hint">Search by name, platform, or IBM product</p>
+        <p className="hub-search-hint">Search by name</p>
 
         <div className="hub-filter-grid">
           <FilterSelect label="Type" value={filters.type} options={[
