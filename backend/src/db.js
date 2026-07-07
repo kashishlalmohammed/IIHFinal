@@ -376,7 +376,21 @@ function deleteInfluencer(id) {
   return result.changes > 0;
 }
 
-function listSocialLeague({ q, member_identity, collaborate, location, business_unit, talks_about_ai } = {}) {
+// Map geo region name → LIKE patterns applied with OR
+const GEO_PATTERNS = {
+  americas: [', us', ', ca', ', br', ', mx', ', cl', 'united states', 'canada', 'brazil', 'mexico'],
+  uk:       [', uk', ', gb', 'united kingdom', 'england', 'scotland', 'wales'],
+  emea:     [', de', ', fr', ', es', ', it', ', nl', ', be', ', ch', ', pl', ', ie',
+             ', se', ', fi', ', no', ', dk', ', ro', ', il', ', sa', ', ae', ', za',
+             ', sg', ', au', ', nz', ', jp', ', kr',
+             'germany', 'france', 'spain', 'italy', 'netherlands', 'switzerland',
+             'poland', 'ireland', 'sweden', 'finland', 'norway', 'denmark',
+             'romania', 'israel', 'saudi', 'dubai', 'singapore', 'australia'],
+  india:    [', in', ', india', 'bangalore', 'bengaluru', 'mumbai', 'chennai',
+             'hyderabad', 'pune', 'delhi', 'nairobi', 'maharashtra', 'karnataka'],
+};
+
+function listSocialLeague({ q, member_identity, collaborate, geo, business_unit, talks_about_ai } = {}) {
   const clauses = [];
   const params = [];
   if (q) {
@@ -385,8 +399,14 @@ function listSocialLeague({ q, member_identity, collaborate, location, business_
     params.push(like, like, like, like);
   }
   if (member_identity) { clauses.push('LOWER(member_identity) = LOWER(?)'); params.push(member_identity); }
-  if (collaborate)     { clauses.push('LOWER(COALESCE(collaborate,\'\')) LIKE ?'); params.push('%' + collaborate.toLowerCase() + '%'); }
-  if (location)        { clauses.push("LOWER(COALESCE(location,'')) LIKE ?"); params.push('%' + location.toLowerCase() + '%'); }
+  if (collaborate)     { clauses.push("LOWER(COALESCE(collaborate,'')) LIKE ?"); params.push('%' + collaborate.toLowerCase() + '%'); }
+  if (geo) {
+    const patterns = GEO_PATTERNS[geo.toLowerCase()] || [];
+    if (patterns.length > 0) {
+      clauses.push('(' + patterns.map(() => "LOWER(COALESCE(location,'')) LIKE ?").join(' OR ') + ')');
+      patterns.forEach(p => params.push('%' + p + '%'));
+    }
+  }
   if (business_unit)   { clauses.push("LOWER(COALESCE(business_unit,'')) LIKE ?"); params.push('%' + business_unit.toLowerCase() + '%'); }
   if (talks_about_ai === '1') { clauses.push('talks_about_ai = 1'); }
   const where = clauses.length ? 'WHERE ' + clauses.join(' AND ') : '';

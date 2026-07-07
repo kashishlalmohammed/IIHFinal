@@ -1111,7 +1111,7 @@ function SocialLeagueView() {
   const [search, setSearch]                 = useState('');
   const [filterIdentity, setFilterIdentity] = useState('');
   const [filterCollaborate, setFilterCollaborate] = useState('');
-  const [filterLocation, setFilterLocation] = useState('');
+  const [filterGeo, setFilterGeo]           = useState('');
   const [filterBU, setFilterBU]             = useState('');
   const [filterAI, setFilterAI]             = useState('');
   const [selected, setSelected]             = useState(null);
@@ -1124,7 +1124,7 @@ function SocialLeagueView() {
       if (search.trim())       params.set('q', search.trim());
       if (filterIdentity)      params.set('member_identity', filterIdentity);
       if (filterCollaborate)   params.set('collaborate', filterCollaborate);
-      if (filterLocation.trim()) params.set('location', filterLocation.trim());
+      if (filterGeo)           params.set('geo', filterGeo);
       if (filterBU)            params.set('business_unit', filterBU);
       if (filterAI)            params.set('talks_about_ai', filterAI);
       setLoading(true);
@@ -1132,7 +1132,7 @@ function SocialLeagueView() {
         .then(r => r.json())
         .then(data => { setMembers(Array.isArray(data) ? data : []); setLoading(false); });
     }, 300);
-  }, [search, filterIdentity, filterCollaborate, filterLocation, filterBU, filterAI]); // eslint-disable-line
+  }, [search, filterIdentity, filterCollaborate, filterGeo, filterBU, filterAI]); // eslint-disable-line
 
   const selectedMember = members.find(m => m.id === selected) || null;
 
@@ -1166,14 +1166,13 @@ function SocialLeagueView() {
               { value: '', text: 'All' },
               { value: '1', text: 'Yes' },
             ]} onChange={v => setFilterAI(v)} />
-            <div style={{ gridColumn: '1 / -1' }}>
-              <TextInput
-                id="sl-filter-location" size="sm" labelText="Location"
-                placeholder="e.g. New York, London"
-                value={filterLocation}
-                onChange={e => setFilterLocation(e.target.value)}
-              />
-            </div>
+            <FilterSelect label="Location" value={filterGeo} options={[
+              { value: '', text: 'All Locations' },
+              { value: 'Americas', text: 'Americas' },
+              { value: 'UK', text: 'UK' },
+              { value: 'EMEA', text: 'EMEA' },
+              { value: 'India', text: 'India' },
+            ]} onChange={v => setFilterGeo(v)} />
           </div>
         </div>
         <div className="hub-list-header">
