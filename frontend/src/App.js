@@ -98,6 +98,10 @@ function StatsBar({ stats }) {
         <p className="hub-stat-value">{stats ? stats.total : <Loading small withOverlay={false} />}</p>
         <p className="hub-stat-label">Total Influencers</p>
       </Tile>
+      <Tile className="hub-stat-tile">
+        <p className="hub-stat-value">{stats ? stats.socialLeague : <Loading small withOverlay={false} />}</p>
+        <p className="hub-stat-label">Total Social Leaguers</p>
+      </Tile>
     </div>
   );
 }
@@ -504,7 +508,6 @@ function InfluencerCard({ influencer, selected, onClick, onEdit }) {
           <p className="hub-card-meta">{influencer.persona_group} · {influencer.location}</p>
         </div>
         <div className="hub-card-top-actions">
-          <StatusTag status={influencer.status} />
           <button
             className="hub-edit-btn"
             title="Edit influencer"
@@ -514,7 +517,6 @@ function InfluencerCard({ influencer, selected, onClick, onEdit }) {
         </div>
       </div>
       <div className="hub-card-tags">
-        <TypeTag type={influencer.type} />
         {(influencer.platforms || []).map(p => <PlatformTag key={p.platform} platform={p.platform} />)}
       </div>
       <div className="hub-card-footer">
@@ -953,9 +955,6 @@ function ProfileView({ influencerId, localOverrides = {} }) {
           <div className="hub-profile-header-info">
             <h1 className="hub-profile-name">{influencer.name}</h1>
             <div className="hub-profile-badges">
-              <TypeTag type={influencer.type} />
-              <StatusTag status={influencer.status} />
-              <ApprovalTag status={influencer.approval_status} />
               <Tag type="cool-gray" size="sm">{influencer.persona_group}</Tag>
             </div>
             <p className="hub-profile-meta">

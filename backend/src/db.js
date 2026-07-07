@@ -191,19 +191,13 @@ function getStats() {
   const counts = db.prepare(
     `SELECT
       COUNT(*) AS total,
-      SUM(CASE WHEN status = 'active' THEN 1 ELSE 0 END) AS active,
-      SUM(CASE WHEN approval_status = 'approved' THEN 1 ELSE 0 END) AS approved,
-      (SELECT COUNT(DISTINCT influencer_id) FROM influencer_content) AS withContent,
-      ROUND(AVG(composite_score), 1) AS avgScore
+      (SELECT COUNT(*) FROM social_league) AS socialLeague
      FROM influencers`
   ).get();
 
   return {
     total: counts.total || 0,
-    active: counts.active || 0,
-    approved: counts.approved || 0,
-    withContent: counts.withContent || 0,
-    avgScore: counts.avgScore || 0,
+    socialLeague: counts.socialLeague || 0,
   };
 }
 
