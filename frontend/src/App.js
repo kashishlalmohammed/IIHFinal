@@ -1330,7 +1330,12 @@ export default function App() {
   const nlTimer = useRef(null);
 
   useEffect(() => {
-    fetch(`${API}/stats`).then(r => r.json()).then(setStats);
+    Promise.all([
+      fetch(`${API}/stats`).then(r => r.json()),
+      fetch(`${API}/social-league`).then(r => r.json()),
+    ]).then(([s, league]) => {
+      setStats({ ...s, socialLeague: Array.isArray(league) ? league.length : 0 });
+    });
   }, []);
 
   useEffect(() => {
