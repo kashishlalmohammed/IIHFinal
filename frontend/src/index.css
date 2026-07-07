@@ -86,6 +86,10 @@
   gap: 0.5rem;
 }
 
+.hub-filter-geo {
+  grid-column: 1 / -1;
+}
+
 .hub-filter-select {
   display: flex;
   flex-direction: column;

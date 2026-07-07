@@ -123,6 +123,10 @@ function buildListWhere(filters = {}) {
     clauses.push('EXISTS (SELECT 1 FROM influencer_campaign_types ct WHERE ct.influencer_id = i.id AND ct.campaign_type = ?)');
     params.push(filters.campaign_type);
   }
+  if (filters.location) {
+    clauses.push('LOWER(COALESCE(i.location, \'\')) LIKE ?');
+    params.push(`%${filters.location.toLowerCase()}%`);
+  }
   if (filters.event) {
     const events = Array.isArray(filters.event) ? filters.event : String(filters.event).split(',').filter(Boolean);
     if (events.length > 0) {

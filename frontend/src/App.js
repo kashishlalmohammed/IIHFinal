@@ -597,6 +597,16 @@ function LeftPanel({ influencers, selectedId, onSelect, onSearch, onFilter, filt
           ]} onChange={v => onFilter('persona_group', v)} />
           <FilterSelect label="Events" value={filters.events} options={EVENT_OPTIONS}
             onChange={v => onFilter('events', v)} />
+          <div className="hub-filter-geo">
+            <TextInput
+              id="filter-geo"
+              size="sm"
+              labelText="Geo"
+              placeholder="e.g. USA, Canada"
+              value={filters.location}
+              onChange={e => onFilter('location', e.target.value)}
+            />
+          </div>
         </div>
 
         <Button kind="ghost" size="sm" onClick={onViewFeed} className="hub-feed-btn">
@@ -1222,7 +1232,7 @@ export default function App() {
   const [localOverrides, setLocalOverrides] = useState({}); // id -> patched fields
   const [selectedId, setSelected] = useState(null);
   const [searchQuery, setSearch] = useState('');
-  const [filters, setFilters]   = useState({ type:'', status:'', platform:'', approval_status:'', persona_group:'', has_content:'', campaign_type:'', events:'' });
+  const [filters, setFilters]   = useState({ type:'', status:'', platform:'', approval_status:'', persona_group:'', has_content:'', campaign_type:'', events:'', location:'' });
   const [showFeed, setShowFeed] = useState(false);
   const [sideNavExpanded, setSideNavExpanded] = useState(false);
   const [formModal, setFormModal] = useState({ open: false, influencer: null });
