@@ -597,16 +597,13 @@ function LeftPanel({ influencers, selectedId, onSelect, onSearch, onFilter, filt
           ]} onChange={v => onFilter('persona_group', v)} />
           <FilterSelect label="Events" value={filters.events} options={EVENT_OPTIONS}
             onChange={v => onFilter('events', v)} />
-          <div className="hub-filter-geo">
-            <TextInput
-              id="filter-geo"
-              size="sm"
-              labelText="Geo"
-              placeholder="e.g. USA, Canada"
-              value={filters.location}
-              onChange={e => onFilter('location', e.target.value)}
-            />
-          </div>
+          <FilterSelect label="Geo" value={filters.location} options={[
+            { value: '', text: 'All Geos' },
+            { value: 'Americas', text: 'Americas' },
+            { value: 'UK', text: 'UK' },
+            { value: 'EMEA', text: 'EMEA' },
+            { value: 'India', text: 'India' },
+          ]} onChange={v => onFilter('location', v)} />
         </div>
 
         <Button kind="ghost" size="sm" onClick={onViewFeed} className="hub-feed-btn">
