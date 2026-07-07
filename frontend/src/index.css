@@ -635,6 +635,18 @@
   margin-bottom: 0.25rem;
 }
 
+.hub-feedback-delete {
+  margin-top: 0.5rem;
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 0.75rem;
+  color: var(--cds-text-error, #da1e28);
+  padding: 0;
+  opacity: 0.6;
+}
+.hub-feedback-delete:hover { opacity: 1; }
+
 .hub-feedback-author {
   font-size: 0.8125rem;
   font-weight: 600;

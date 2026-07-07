@@ -59,14 +59,21 @@ function listFeedback(influencerId) {
   ).all(influencerId);
 }
 
-function saveFeedback(influencerId, { author, team, body }) {
+function saveFeedback(influencerId, { author, body }) {
   const id = `f${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
   const created_at = new Date().toISOString().split('T')[0];
   db.prepare(
     `INSERT INTO influencer_feedback (id, influencer_id, author, team, body, created_at)
      VALUES (?, ?, ?, ?, ?, ?)`
-  ).run(id, influencerId, author || 'Anonymous', team || 'campaign', body, created_at);
-  return { id, author: author || 'Anonymous', team: team || 'campaign', body, created_at };
+  ).run(id, influencerId, author || 'Anonymous', 'general', body, created_at);
+  return { id, author: author || 'Anonymous', team: 'general', body, created_at };
+}
+
+function deleteFeedback(influencerId, feedbackId) {
+  const result = db.prepare(
+    'DELETE FROM influencer_feedback WHERE id = ? AND influencer_id = ?'
+  ).run(feedbackId, influencerId);
+  return result.changes > 0;
 }
 
 function mapInfluencer(row) {
@@ -375,6 +382,7 @@ module.exports = {
   findInfluencerByName,
   updateInfluencer,
   saveFeedback,
+  deleteFeedback,
   getContentFeed,
   getInfluencerById,
   getInfluencerContent,

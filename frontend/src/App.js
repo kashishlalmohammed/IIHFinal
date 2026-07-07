@@ -884,11 +884,8 @@ function ContentTab({ influencer }) {
 function FeedbackTab({ influencer }) {
   const [entries, setEntries] = useState(influencer.feedback || []);
   const [open, setOpen]       = useState(false);
-  const [form, setForm]       = useState({ author: '', team: 'campaign', body: '' });
+  const [form, setForm]       = useState({ author: '', body: '' });
   const [saving, setSaving]   = useState(false);
-
-  const campaign = entries.filter(f => f.team === 'campaign');
-  const devrel   = entries.filter(f => f.team === 'devrel');
 
   function setF(k, v) { setForm(prev => ({ ...prev, [k]: v })); }
 
@@ -903,29 +900,16 @@ function FeedbackTab({ influencer }) {
     if (r.ok) {
       const entry = await r.json();
       setEntries(prev => [entry, ...prev]);
-      setForm({ author: '', team: 'campaign', body: '' });
+      setForm({ author: '', body: '' });
       setOpen(false);
     }
     setSaving(false);
   }
 
-  const Section = ({ title, items }) => (
-    <div className="hub-section">
-      <p className="hub-section-label">{title}</p>
-      {items.length === 0
-        ? <p className="hub-muted" style={{ fontStyle: 'italic' }}>No {title.toLowerCase()} feedback logged.</p>
-        : items.map(f => (
-          <Tile key={f.id} className="hub-feedback-tile">
-            <div className="hub-feedback-header">
-              <span className="hub-feedback-author">{f.author}</span>
-              <span className="hub-muted">{f.created_at}</span>
-            </div>
-            <p className="hub-body-text" style={{ marginTop: '0.25rem' }}>{f.body}</p>
-          </Tile>
-        ))
-      }
-    </div>
-  );
+  async function handleDelete(fid) {
+    const r = await fetch(`${API}/influencers/${influencer.id}/feedback/${fid}`, { method: 'DELETE' });
+    if (r.ok) setEntries(prev => prev.filter(f => f.id !== fid));
+  }
 
   return (
     <div className="hub-tab-content">
@@ -941,13 +925,6 @@ function FeedbackTab({ influencer }) {
             id="fb-author" labelText="Your name" value={form.author}
             onChange={e => setF('author', e.target.value)}
           />
-          <Select id="fb-team" labelText="Team" value={form.team}
-            onChange={e => setF('team', e.target.value)}
-            style={{ marginTop: '0.75rem' }}
-          >
-            <SelectItem value="campaign" text="Campaign Team" />
-            <SelectItem value="devrel"   text="IBM Developer Relations" />
-          </Select>
           <TextArea
             id="fb-body" labelText="Feedback *" value={form.body}
             onChange={e => setF('body', e.target.value)}
@@ -965,8 +942,23 @@ function FeedbackTab({ influencer }) {
         </Tile>
       )}
 
-      <Section title="Campaign Team" items={campaign} />
-      <Section title="IBM Developer Relations" items={devrel} />
+      {entries.length === 0
+        ? <p className="hub-muted" style={{ fontStyle: 'italic' }}>No feedback logged.</p>
+        : entries.map(f => (
+          <Tile key={f.id} className="hub-feedback-tile">
+            <div className="hub-feedback-header">
+              <span className="hub-feedback-author">{f.author}</span>
+              <span className="hub-muted">{f.created_at}</span>
+            </div>
+            <p className="hub-body-text" style={{ marginTop: '0.25rem' }}>{f.body}</p>
+            <button
+              className="hub-feedback-delete"
+              onClick={() => handleDelete(f.id)}
+              aria-label="Delete feedback"
+            >✕</button>
+          </Tile>
+        ))
+      }
     </div>
   );
 }

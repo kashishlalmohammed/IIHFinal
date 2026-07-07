@@ -9,6 +9,7 @@ const {
   findInfluencerByName,
   updateInfluencer,
   saveFeedback,
+  deleteFeedback,
   getContentFeed,
   getInfluencerById,
   getInfluencerContent,
@@ -128,6 +129,12 @@ app.get('/api/influencers/:id/feedback', (req, res) => {
   const influencer = getInfluencerById(req.params.id);
   if (!influencer) return res.status(404).json({ error: 'Not found' });
   res.json(influencer.feedback || []);
+});
+
+app.delete('/api/influencers/:id/feedback/:fid', (req, res) => {
+  const deleted = deleteFeedback(req.params.id, req.params.fid);
+  if (!deleted) return res.status(404).json({ error: 'Not found' });
+  res.status(204).end();
 });
 
 app.post('/api/influencers/:id/feedback', (req, res) => {
