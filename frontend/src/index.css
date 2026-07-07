@@ -18,23 +18,27 @@
 
 .hub-stats-bar {
   display: flex;
+  gap: 3rem;
+  padding: 1.25rem 1.5rem 1rem;
   border-bottom: 1px solid var(--cds-border-subtle-00);
+  background: var(--cds-layer-01);
   flex-shrink: 0;
 }
 
 .hub-stat-tile.cds--tile {
-  flex: 1;
-  padding: 1rem 1.25rem 0.75rem;
-  border-right: 1px solid var(--cds-border-subtle-00);
+  flex: 0 0 auto;
+  padding: 0;
+  background: transparent;
+  box-shadow: none;
+  border: none;
   border-radius: 0;
 }
-.hub-stat-tile.cds--tile:last-child { border-right: none; }
 
 .hub-stat-value {
-  font-size: 2.25rem;
+  font-size: 2.5rem;
   font-weight: 300;
   line-height: 1;
-  color: var(--cds-link-primary);
+  color: var(--cds-text-primary);
   margin: 0;
 }
 
@@ -804,13 +808,9 @@
     min-height: 50vh;
   }
 
-  /* Stats: 3 tiles per row */
   .hub-stats-bar {
-    flex-wrap: wrap;
-  }
-
-  .hub-stat-tile.cds--tile {
-    min-width: calc(33.34% - 1px);
+    gap: 2rem;
+    padding: 1rem 1.25rem 0.75rem;
   }
 
   /* Filter grid: 2 columns */
@@ -827,13 +827,8 @@
     max-height: 55vh;
   }
 
-  /* Stats: 2 tiles per row, smaller numbers */
-  .hub-stat-tile.cds--tile {
-    min-width: calc(50% - 1px);
-  }
-
   .hub-stat-value {
-    font-size: 1.5rem;
+    font-size: 1.75rem;
   }
 
   /* Filter grid: single column */
