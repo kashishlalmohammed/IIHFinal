@@ -92,26 +92,12 @@ function PlatformTag({ platform, size = 'sm' }) {
 // ── Stats Bar using Carbon Tiles ──────────────────────────────────────────────
 
 function StatsBar({ stats }) {
-  if (!stats) return (
-    <div className="hub-stats-bar">
-      {[...Array(5)].map((_, i) => <Tile key={i} className="hub-stat-tile"><Loading small withOverlay={false} /></Tile>)}
-    </div>
-  );
-  const cells = [
-    { label: 'Total Influencers', value: stats.total },
-    { label: 'Active',            value: stats.active },
-    { label: 'Approved',          value: stats.approved },
-    { label: 'Avg Score',         value: stats.avgScore },
-    { label: 'With IBM Content',  value: stats.withContent },
-  ];
   return (
     <div className="hub-stats-bar">
-      {cells.map(c => (
-        <Tile key={c.label} className="hub-stat-tile">
-          <p className="hub-stat-value">{c.value}</p>
-          <p className="hub-stat-label">{c.label}</p>
-        </Tile>
-      ))}
+      <Tile className="hub-stat-tile">
+        <p className="hub-stat-value">{stats ? stats.total : <Loading small withOverlay={false} />}</p>
+        <p className="hub-stat-label">Total Influencers</p>
+      </Tile>
     </div>
   );
 }
