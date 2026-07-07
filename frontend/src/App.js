@@ -1103,26 +1103,36 @@ const IDENTITY_COLORS = {
   'Reserved -': 'gray',
 };
 
+const SL_BUSINESS_UNITS = ['CHQ','Consulting','Data and AI','Ecosystem','Finance and Operations','Infrastructure & Hybrid Cloud','Quantum','Research','Sales','Security','Software'];
+
 function SocialLeagueView() {
-  const [members, setMembers]         = useState([]);
-  const [loading, setLoading]         = useState(true);
-  const [search, setSearch]           = useState('');
+  const [members, setMembers]               = useState([]);
+  const [loading, setLoading]               = useState(true);
+  const [search, setSearch]                 = useState('');
   const [filterIdentity, setFilterIdentity] = useState('');
-  const [selected, setSelected]       = useState(null);
+  const [filterCollaborate, setFilterCollaborate] = useState('');
+  const [filterLocation, setFilterLocation] = useState('');
+  const [filterBU, setFilterBU]             = useState('');
+  const [filterAI, setFilterAI]             = useState('');
+  const [selected, setSelected]             = useState(null);
   const searchTimer = useRef(null);
 
   useEffect(() => {
-    const params = new URLSearchParams();
-    if (filterIdentity) params.set('member_identity', filterIdentity);
     clearTimeout(searchTimer.current);
     searchTimer.current = setTimeout(() => {
-      if (search.trim()) params.set('q', search.trim());
+      const params = new URLSearchParams();
+      if (search.trim())       params.set('q', search.trim());
+      if (filterIdentity)      params.set('member_identity', filterIdentity);
+      if (filterCollaborate)   params.set('collaborate', filterCollaborate);
+      if (filterLocation.trim()) params.set('location', filterLocation.trim());
+      if (filterBU)            params.set('business_unit', filterBU);
+      if (filterAI)            params.set('talks_about_ai', filterAI);
       setLoading(true);
       fetch(`${API}/social-league?${params}`)
         .then(r => r.json())
         .then(data => { setMembers(Array.isArray(data) ? data : []); setLoading(false); });
     }, 300);
-  }, [search, filterIdentity]); // eslint-disable-line
+  }, [search, filterIdentity, filterCollaborate, filterLocation, filterBU, filterAI]); // eslint-disable-line
 
   const selectedMember = members.find(m => m.id === selected) || null;
 
@@ -1135,13 +1145,35 @@ function SocialLeagueView() {
             value={search} onChange={e => setSearch(e.target.value)} />
           <p className="hub-search-hint">Search by name, title, location, or business unit</p>
           <div className="hub-filter-grid">
-            <FilterSelect label="Identity" value={filterIdentity} options={[
+            <FilterSelect label="Member Identity" value={filterIdentity} options={[
               { value: '', text: 'All Identities' },
               { value: 'Superstars', text: 'Superstars' },
               { value: 'Engager', text: 'Engager' },
               { value: 'Observer', text: 'Observer' },
               { value: 'Reserved -', text: 'Reserved' },
             ]} onChange={v => setFilterIdentity(v)} />
+            <FilterSelect label="Collaborates with SM+I" value={filterCollaborate} options={[
+              { value: '', text: 'All' },
+              { value: 'yes', text: 'Yes' },
+              { value: 'recommended', text: 'Recommended' },
+              { value: 'no', text: 'No' },
+            ]} onChange={v => setFilterCollaborate(v)} />
+            <FilterSelect label="Business Unit" value={filterBU} options={[
+              { value: '', text: 'All Business Units' },
+              ...SL_BUSINESS_UNITS.map(u => ({ value: u, text: u })),
+            ]} onChange={v => setFilterBU(v)} />
+            <FilterSelect label="Talks about AI" value={filterAI} options={[
+              { value: '', text: 'All' },
+              { value: '1', text: 'Yes' },
+            ]} onChange={v => setFilterAI(v)} />
+            <div style={{ gridColumn: '1 / -1' }}>
+              <TextInput
+                id="sl-filter-location" size="sm" labelText="Location"
+                placeholder="e.g. New York, London"
+                value={filterLocation}
+                onChange={e => setFilterLocation(e.target.value)}
+              />
+            </div>
           </div>
         </div>
         <div className="hub-list-header">
