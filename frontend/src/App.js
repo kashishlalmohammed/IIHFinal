@@ -352,10 +352,6 @@ function csvRowToInfluencer(row) {
     }
   }
 
-  const typeRaw = (row['type'] || '').toLowerCase();
-  const type = typeRaw.includes('ibm') || typeRaw.includes('internal') || typeRaw.includes('league')
-    ? 'internal' : 'external';
-
   const personaRaw = row['persona'] || row['persona_group'] || 'Developer / Engineer';
 
   const campaigns = row['campaigns']
@@ -366,7 +362,6 @@ function csvRowToInfluencer(row) {
 
   return {
     name: row['name'] || '',
-    type,
     persona_group: personaRaw,
     bio: row['description'] || row['bio'] || '',
     location: geos,
@@ -428,10 +423,10 @@ function CsvUploadModal({ open, onClose, onImport }) {
         Upload a CSV with the following columns. Two formats are accepted:
       </p>
       <p style={{ marginBottom: '0.25rem', fontSize: '0.8125rem', fontFamily: 'monospace', background: '#f7f8fa', padding: '0.5rem', borderRadius: '4px', wordBreak: 'break-all' }}>
-        <strong>Simple:</strong> Name, Type, Social Platform URL, Handle, Persona, Description, Campaigns, Followers, Geos
+        <strong>Simple:</strong> Name, Social Platform URL, Handle, Persona, Description, Campaigns, Followers, Geos
       </p>
       <p style={{ marginBottom: '1rem', fontSize: '0.8125rem', fontFamily: 'monospace', background: '#f7f8fa', padding: '0.5rem', borderRadius: '4px', wordBreak: 'break-all' }}>
-        <strong>Multi-platform:</strong> Name, Type, Persona, Description, Campaigns, Geos, Social Platform URL #1, Handle #1, Follower Count #1, Social Platform URL #2, Handle #2, Follower Count #2, …
+        <strong>Multi-platform:</strong> Name, Persona, Description, Campaigns, Geos, Social Platform URL #1, Handle #1, Follower Count #1, Social Platform URL #2, Handle #2, Follower Count #2, …
       </p>
       <FileUploader
         labelTitle="Select CSV file"
@@ -458,7 +453,7 @@ function CsvUploadModal({ open, onClose, onImport }) {
             <table style={{ borderCollapse: 'collapse', fontSize: '0.8125rem', width: '100%' }}>
               <thead>
                 <tr style={{ background: '#f7f8fa', borderBottom: '1px solid #e5e7eb' }}>
-                  {['Name','Type','Persona','Platforms','Geos'].map(h => (
+                  {['Name','Persona','Platforms','Geos'].map(h => (
                     <th key={h} style={{ padding: '4px 8px', textAlign: 'left', fontWeight: 600 }}>{h}</th>
                   ))}
                 </tr>
@@ -472,7 +467,6 @@ function CsvUploadModal({ open, onClose, onImport }) {
                   return (
                     <tr key={i} style={{ borderBottom: '1px solid #e5e7eb' }}>
                       <td style={{ padding: '4px 8px' }}>{row['name']}</td>
-                      <td style={{ padding: '4px 8px' }}>{row['type']}</td>
                       <td style={{ padding: '4px 8px' }}>{row['persona'] || row['persona_group'] || '—'}</td>
                       <td style={{ padding: '4px 8px' }}>{platformSummary}</td>
                       <td style={{ padding: '4px 8px' }}>{row['geos'] || row['geo'] || row['location'] || '—'}</td>
