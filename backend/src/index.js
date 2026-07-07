@@ -10,6 +10,7 @@ const {
   updateInfluencer,
   saveFeedback,
   deleteFeedback,
+  listSocialLeague,
   getContentFeed,
   getInfluencerById,
   getInfluencerContent,
@@ -26,6 +27,10 @@ app.use(express.json());
 
 const uiBuild = path.join(__dirname, '../../frontend/build');
 app.use(express.static(uiBuild));
+
+app.get('/api/social-league', (req, res) => {
+  res.json(listSocialLeague(req.query));
+});
 
 app.get('/api/stats', (req, res) => {
   res.json(getStats());

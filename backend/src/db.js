@@ -376,6 +376,21 @@ function deleteInfluencer(id) {
   return result.changes > 0;
 }
 
+function listSocialLeague({ q, member_identity, location, business_unit } = {}) {
+  const clauses = [];
+  const params = [];
+  if (q) {
+    clauses.push(`(LOWER(name) LIKE ? OR LOWER(COALESCE(title,'')) LIKE ? OR LOWER(COALESCE(business_unit,'')) LIKE ? OR LOWER(COALESCE(location,'')) LIKE ?)`);
+    const like = \`%\${q.toLowerCase()}%\`;
+    params.push(like, like, like, like);
+  }
+  if (member_identity) { clauses.push('LOWER(member_identity) = LOWER(?)'); params.push(member_identity); }
+  if (location)        { clauses.push('LOWER(COALESCE(location,\\'\\')) LIKE ?'); params.push(\`%\${location.toLowerCase()}%\`); }
+  if (business_unit)   { clauses.push('LOWER(COALESCE(business_unit,\\'\\')) LIKE ?'); params.push(\`%\${business_unit.toLowerCase()}%\`); }
+  const where = clauses.length ? 'WHERE ' + clauses.join(' AND ') : '';
+  return db.prepare(\`SELECT * FROM social_league \${where} ORDER BY followers DESC, name ASC\`).all(...params);
+}
+
 module.exports = {
   createInfluencer,
   deleteInfluencer,
@@ -391,4 +406,5 @@ module.exports = {
   getStats,
   listInfluencers,
   searchInfluencers,
+  listSocialLeague,
 };

@@ -1094,6 +1094,156 @@ function GlobalFeed({ onClose }) {
   );
 }
 
+// ── Social League View ────────────────────────────────────────────────────────
+
+const IDENTITY_COLORS = {
+  'Superstars': 'purple',
+  'Engager': 'blue',
+  'Observer': 'cool-gray',
+  'Reserved -': 'gray',
+};
+
+function SocialLeagueView() {
+  const [members, setMembers]         = useState([]);
+  const [loading, setLoading]         = useState(true);
+  const [search, setSearch]           = useState('');
+  const [filterIdentity, setFilterIdentity] = useState('');
+  const [selected, setSelected]       = useState(null);
+  const searchTimer = useRef(null);
+
+  useEffect(() => {
+    const params = new URLSearchParams();
+    if (filterIdentity) params.set('member_identity', filterIdentity);
+    clearTimeout(searchTimer.current);
+    searchTimer.current = setTimeout(() => {
+      if (search.trim()) params.set('q', search.trim());
+      setLoading(true);
+      fetch(`${API}/social-league?${params}`)
+        .then(r => r.json())
+        .then(data => { setMembers(Array.isArray(data) ? data : []); setLoading(false); });
+    }, 300);
+  }, [search, filterIdentity]); // eslint-disable-line
+
+  const selectedMember = members.find(m => m.id === selected) || null;
+
+  return (
+    <div className="hub-main">
+      {/* Left panel */}
+      <div className="hub-left-panel">
+        <div className="hub-filters">
+          <Search id="sl-search" size="lg" labelText="Search" placeholder='e.g. "Aaron Baughman"'
+            value={search} onChange={e => setSearch(e.target.value)} />
+          <p className="hub-search-hint">Search by name, title, location, or business unit</p>
+          <div className="hub-filter-grid">
+            <FilterSelect label="Identity" value={filterIdentity} options={[
+              { value: '', text: 'All Identities' },
+              { value: 'Superstars', text: 'Superstars' },
+              { value: 'Engager', text: 'Engager' },
+              { value: 'Observer', text: 'Observer' },
+              { value: 'Reserved -', text: 'Reserved' },
+            ]} onChange={v => setFilterIdentity(v)} />
+          </div>
+        </div>
+        <div className="hub-list-header">
+          <p className="hub-list-count">{members.length} member{members.length !== 1 ? 's' : ''}</p>
+        </div>
+        <div className="hub-card-list">
+          {loading && <div style={{ padding: '1rem' }}><Loading small withOverlay={false} /></div>}
+          {!loading && members.length === 0 && (
+            <div className="hub-empty-list"><p>No members match.</p></div>
+          )}
+          {members.map(m => (
+            <Tile key={m.id}
+              className={`hub-influencer-tile ${selected === m.id ? 'hub-influencer-tile--selected' : ''}`}
+              onClick={() => setSelected(m.id)}
+            >
+              <div className="hub-card-top">
+                <div className="hub-card-info">
+                  <p className="hub-card-name">{m.name}</p>
+                  <p className="hub-card-meta">{m.title}</p>
+                </div>
+                <div className="hub-card-top-actions">
+                  <Tag type={IDENTITY_COLORS[m.member_identity] || 'gray'} size="sm">{m.member_identity}</Tag>
+                </div>
+              </div>
+              <div className="hub-card-footer" style={{ marginTop: '0.375rem' }}>
+                <span className="hub-muted">{fmt(m.followers)} followers</span>
+                <span className="hub-muted">{m.location}</span>
+              </div>
+            </Tile>
+          ))}
+        </div>
+      </div>
+
+      {/* Right panel */}
+      {selectedMember ? (
+        <div className="hub-right-panel">
+          <div className="hub-profile-header">
+            <div className="hub-profile-header-top">
+              <div className="hub-profile-header-info">
+                <h1 className="hub-profile-name">{selectedMember.name}</h1>
+                <div className="hub-profile-badges">
+                  <Tag type={IDENTITY_COLORS[selectedMember.member_identity] || 'gray'} size="sm">
+                    {selectedMember.member_identity}
+                  </Tag>
+                  {selectedMember.talks_about_ai === 1 && <Tag type="teal" size="sm">Talks about AI</Tag>}
+                  {selectedMember.collaborate && selectedMember.collaborate !== 'No' && (
+                    <Tag type="green" size="sm">Collaborate: {selectedMember.collaborate}</Tag>
+                  )}
+                </div>
+                <p className="hub-profile-meta">
+                  📍 {selectedMember.location || '—'}
+                  &nbsp;·&nbsp; {fmt(selectedMember.followers)} LinkedIn followers
+                </p>
+              </div>
+            </div>
+          </div>
+          <div className="hub-tab-content" style={{ padding: '1.5rem 2rem' }}>
+            <div className="hub-section">
+              <p className="hub-section-label">Title</p>
+              <p className="hub-body-text">{selectedMember.title || '—'}</p>
+            </div>
+            <div className="hub-section">
+              <p className="hub-section-label">Business Unit</p>
+              <p className="hub-body-text">{selectedMember.business_unit || '—'}</p>
+            </div>
+            <div className="hub-section hub-meta-row">
+              <Tile className="hub-meta-tile">
+                <p className="hub-section-label">Email</p>
+                <p className="hub-body-text" style={{ wordBreak: 'break-all' }}>{selectedMember.email || '—'}</p>
+              </Tile>
+              <Tile className="hub-meta-tile">
+                <p className="hub-section-label">LinkedIn</p>
+                <p className="hub-body-text" style={{ wordBreak: 'break-all' }}>
+                  {selectedMember.linkedin
+                    ? <a href={selectedMember.linkedin} target="_blank" rel="noopener noreferrer">View profile</a>
+                    : '—'}
+                </p>
+              </Tile>
+            </div>
+            {selectedMember.w3 && (
+              <div className="hub-section">
+                <p className="hub-section-label">w3 Profile</p>
+                <p className="hub-body-text">
+                  <a href={selectedMember.w3} target="_blank" rel="noopener noreferrer">{selectedMember.w3}</a>
+                </p>
+              </div>
+            )}
+          </div>
+        </div>
+      ) : (
+        <div className="hub-right-panel hub-empty-state">
+          <Tile className="hub-empty-tile" style={{ textAlign: 'center', padding: '3rem 2rem' }}>
+            <p style={{ fontSize: '2rem', marginBottom: '1rem', opacity: 0.3 }}>◎</p>
+            <p className="hub-heading-sm">Select a member</p>
+            <p className="hub-muted" style={{ marginTop: '0.25rem' }}>Click a card to view their profile</p>
+          </Tile>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── Root App ──────────────────────────────────────────────────────────────────
 
 export default function App() {
@@ -1104,6 +1254,7 @@ export default function App() {
   const [searchQuery, setSearch] = useState('');
   const [filters, setFilters]   = useState({ type:'', status:'', platform:'', approval_status:'', persona_group:'', has_content:'', campaign_type:'', events:'', location:'' });
   const [showFeed, setShowFeed] = useState(false);
+  const [showSocialLeague, setShowSocialLeague] = useState(false);
   const [sideNavExpanded, setSideNavExpanded] = useState(false);
   const [formModal, setFormModal] = useState({ open: false, influencer: null });
   const [csvModal, setCsvModal] = useState(false);
@@ -1144,7 +1295,7 @@ export default function App() {
     localOverrides[inf.id] ? { ...inf, ...localOverrides[inf.id] } : inf
   );
 
-  const handleSelect = useCallback((id) => { setSelected(id); setShowFeed(false); }, []);
+  const handleSelect = useCallback((id) => { setSelected(id); setShowFeed(false); setShowSocialLeague(false); }, []);
   const handleFilter = useCallback((k, v) => setFilters(prev => ({ ...prev, [k]: v })), []);
   const handleViewFeed = useCallback(() => setShowFeed(true), []);
   const handleOpenAdd     = useCallback(() => setFormModal({ open: true, influencer: null }), []);
@@ -1212,14 +1363,17 @@ export default function App() {
         <HeaderMenuButton aria-label="Open menu" onClick={() => setSideNavExpanded(v => !v)} isActive={sideNavExpanded} />
         <HeaderName href="#" prefix="IBM">Influencer Intelligence Hub</HeaderName>
         <HeaderNavigation aria-label="IBM Influencer Hub">
-          <HeaderMenuItem isActive={!showFeed} onClick={() => setShowFeed(false)}>Influencers</HeaderMenuItem>
-          <HeaderMenuItem isActive={showFeed} onClick={() => setShowFeed(true)}>IBM Content Feed</HeaderMenuItem>
+          <HeaderMenuItem isActive={!showFeed && !showSocialLeague} onClick={() => { setShowFeed(false); setShowSocialLeague(false); }}>Influencers</HeaderMenuItem>
+          <HeaderMenuItem isActive={showSocialLeague} onClick={() => { setShowFeed(false); setShowSocialLeague(true); }}>Social League</HeaderMenuItem>
+          <HeaderMenuItem isActive={showFeed} onClick={() => { setShowFeed(true); setShowSocialLeague(false); }}>IBM Content Feed</HeaderMenuItem>
         </HeaderNavigation>
       </Header>
 
       <Content className="hub-content">
         <StatsBar stats={stats} />
-        <div className="hub-main">
+        {showSocialLeague
+          ? <SocialLeagueView />
+          : <div className="hub-main">
           <LeftPanel
             influencers={displayList}
             selectedId={selectedId}
@@ -1237,7 +1391,7 @@ export default function App() {
             ? <GlobalFeed onClose={() => setShowFeed(false)} />
             : <ProfileView influencerId={selectedId} localOverrides={localOverrides} />
           }
-        </div>
+        </div>}
       </Content>
 
       <InfluencerFormModal
