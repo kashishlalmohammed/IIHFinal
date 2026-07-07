@@ -1200,9 +1200,22 @@ function SocialLeagueAddModal({ open, onClose, onSave }) {
 }
 
 function slCsvRowToMember(row) {
-  // Normalise header: lowercase + collapse non-alphanumeric to _
-  const n = k => k.trim().toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/, '');
-  const get = (...keys) => { for (const k of keys) { const v = row[n(k)]; if (v != null && v !== '') return v; } return ''; };
+  // parseCsv normalises headers by only collapsing spaces → underscores (not other chars).
+  // This lookup normalises both the lookup key AND the row keys the same way so they match.
+  const normHeader = k => k.trim().toLowerCase().replace(/\s+/g, '_');
+  // Also try stripping all non-alphanumeric (for keys passed as plain names)
+  const normStrict = k => k.trim().toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/, '');
+  const normRow = Object.fromEntries(Object.entries(row).map(([k, v]) => [normStrict(k), v]));
+  const get = (...keys) => {
+    for (const k of keys) {
+      // Try exact parseCsv-normalised key first, then strict-normalised key
+      const v1 = row[normHeader(k)];
+      if (v1 != null && v1 !== '') return v1;
+      const v2 = normRow[normStrict(k)];
+      if (v2 != null && v2 !== '') return v2;
+    }
+    return '';
+  };
   const aiRaw = get('talks_about_ai', 'talks about ai').toLowerCase();
   return {
     name:            get('name'),
