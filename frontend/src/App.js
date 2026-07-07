@@ -292,20 +292,36 @@ function parseCsv(text) {
 function normKey(h) { return h.trim().toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, ''); }
 
 function csvRowToInfluencer(row) {
-  // Collect numbered platform slots: Social Platform URL #1, Handle #1, Follower Count #1 … up to however many exist
   const platforms = [];
-  for (let n = 1; n <= 10; n++) {
-    // Accept "social_platform_url_#1", "social_platform_url_1", "social_platform_url__1" etc.
-    const urlKey   = Object.keys(row).find(k => normKey(k) === normKey(`social platform url #${n}`) || normKey(k) === normKey(`social platform url ${n}`));
-    const handleKey = Object.keys(row).find(k => normKey(k) === normKey(`handle #${n}`) || normKey(k) === normKey(`handle ${n}`));
-    const countKey  = Object.keys(row).find(k => normKey(k) === normKey(`follower count #${n}`) || normKey(k) === normKey(`follower count ${n}`));
-    const url = urlKey ? (row[urlKey] || '').trim() : '';
-    if (!url) break; // slots are in order; stop at first empty URL
-    const platform = PLATFORM_FROM_URL(url);
-    const handle   = handleKey ? (row[handleKey] || '').trim() : '';
-    const countRaw = countKey  ? (row[countKey]  || '0') : '0';
-    const follower_count = parseInt(String(countRaw).replace(/[^0-9]/g, ''), 10) || 0;
-    if (platform) platforms.push({ platform, url, handle, follower_count });
+
+  // Check for simple single-platform format: Social Platform URL, Handle, Followers
+  const simplePlatformUrlKey = Object.keys(row).find(k => normKey(k) === 'social_platform_url');
+  const simpleHandleKey      = Object.keys(row).find(k => normKey(k) === 'handle');
+  const simpleFollowersKey   = Object.keys(row).find(k => normKey(k) === 'followers' || normKey(k) === 'follower_count');
+
+  if (simplePlatformUrlKey) {
+    const url = (row[simplePlatformUrlKey] || '').trim();
+    if (url) {
+      const platform = PLATFORM_FROM_URL(url);
+      const handle   = simpleHandleKey ? (row[simpleHandleKey] || '').trim() : '';
+      const countRaw = simpleFollowersKey ? (row[simpleFollowersKey] || '0') : '0';
+      const follower_count = parseInt(String(countRaw).replace(/[^0-9]/g, ''), 10) || 0;
+      if (platform) platforms.push({ platform, url, handle, follower_count });
+    }
+  } else {
+    // Numbered platform slots: Social Platform URL #1, Handle #1, Follower Count #1 … up to however many exist
+    for (let n = 1; n <= 10; n++) {
+      const urlKey    = Object.keys(row).find(k => normKey(k) === normKey(`social platform url #${n}`) || normKey(k) === normKey(`social platform url ${n}`));
+      const handleKey = Object.keys(row).find(k => normKey(k) === normKey(`handle #${n}`) || normKey(k) === normKey(`handle ${n}`));
+      const countKey  = Object.keys(row).find(k => normKey(k) === normKey(`follower count #${n}`) || normKey(k) === normKey(`follower count ${n}`));
+      const url = urlKey ? (row[urlKey] || '').trim() : '';
+      if (!url) break;
+      const platform = PLATFORM_FROM_URL(url);
+      const handle   = handleKey ? (row[handleKey] || '').trim() : '';
+      const countRaw = countKey  ? (row[countKey]  || '0') : '0';
+      const follower_count = parseInt(String(countRaw).replace(/[^0-9]/g, ''), 10) || 0;
+      if (platform) platforms.push({ platform, url, handle, follower_count });
+    }
   }
 
   const typeRaw = (row['type'] || '').toLowerCase();
@@ -368,8 +384,6 @@ function CsvUploadModal({ open, onClose, onImport }) {
     reader.readAsText(file);
   }
 
-  const expectedCols = 'Name, Type, Persona, Description, Campaigns, Geos, Social Platform URL #1, Handle #1, Follower Count #1, Social Platform URL #2, Handle #2, Follower Count #2, …';
-
   return (
     <Modal
       open={open}
@@ -383,10 +397,13 @@ function CsvUploadModal({ open, onClose, onImport }) {
       size="md"
     >
       <p style={{ marginBottom: '0.5rem', fontSize: '0.875rem', color: '#57606a' }}>
-        Upload a CSV with the following columns:
+        Upload a CSV with the following columns. Two formats are accepted:
+      </p>
+      <p style={{ marginBottom: '0.25rem', fontSize: '0.8125rem', fontFamily: 'monospace', background: '#f7f8fa', padding: '0.5rem', borderRadius: '4px', wordBreak: 'break-all' }}>
+        <strong>Simple:</strong> Name, Type, Social Platform URL, Handle, Persona, Description, Campaigns, Followers, Geos
       </p>
       <p style={{ marginBottom: '1rem', fontSize: '0.8125rem', fontFamily: 'monospace', background: '#f7f8fa', padding: '0.5rem', borderRadius: '4px', wordBreak: 'break-all' }}>
-        {expectedCols}
+        <strong>Multi-platform:</strong> Name, Type, Persona, Description, Campaigns, Geos, Social Platform URL #1, Handle #1, Follower Count #1, Social Platform URL #2, Handle #2, Follower Count #2, …
       </p>
       <FileUploader
         labelTitle="Select CSV file"
