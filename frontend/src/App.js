@@ -911,7 +911,7 @@ function FeedbackTab({ influencer }) {
 
 // ── Profile View (Right Panel) ────────────────────────────────────────────────
 
-function ProfileView({ influencerId, localOverrides = {} }) {
+function ProfileView({ influencerId, localOverrides = {}, onEdit }) {
   const [influencer, setInfluencer] = useState(null);
   const [loading, setLoading]       = useState(false);
 
@@ -962,6 +962,9 @@ function ProfileView({ influencerId, localOverrides = {} }) {
               {influencer.owner && <> &nbsp;·&nbsp; Owner: {influencer.owner}</>}
             </p>
           </div>
+          {onEdit && (
+            <button className="hub-edit-btn" title="Edit influencer" onClick={() => onEdit(influencer)} aria-label={`Edit ${influencer.name}`}>✎</button>
+          )}
         </div>
         <div className="hub-platform-strip">
           {(influencer.platforms || []).map(p => (
@@ -1551,7 +1554,7 @@ export default function App() {
           />
           {showFeed
             ? <GlobalFeed onClose={() => setShowFeed(false)} />
-            : <ProfileView influencerId={selectedId} localOverrides={localOverrides} />
+            : <ProfileView influencerId={selectedId} localOverrides={localOverrides} onEdit={handleOpenEdit} />
           }
         </div>}
       </Content>
