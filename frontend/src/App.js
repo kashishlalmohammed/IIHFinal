@@ -312,8 +312,11 @@ function parseCsv(text) {
   if (cols.some(c => c !== '')) rows.push(cols);
 
   if (rows.length < 2) return [];
-  const headers = rows[0].map(h => h.toLowerCase().replace(/\s+/g, '_'));
-  return rows.slice(1).map(cols => {
+  // Skip any leading title rows — find the first row that contains a "name" column
+  const headerIdx = rows.findIndex(r => r.some(c => c.trim().toLowerCase() === 'name'));
+  if (headerIdx === -1 || headerIdx >= rows.length - 1) return [];
+  const headers = rows[headerIdx].map(h => h.toLowerCase().replace(/\s+/g, '_'));
+  return rows.slice(headerIdx + 1).map(cols => {
     const row = {};
     headers.forEach((h, i) => { row[h] = cols[i] || ''; });
     return row;
