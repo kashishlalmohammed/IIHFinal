@@ -549,7 +549,7 @@ function LeftPanel({ influencers, selectedId, onSelect, onSearch, onFilter, filt
         </div>
 
         <Button kind="ghost" size="sm" onClick={onViewFeed} className="hub-feed-btn">
-          ↗ View Global #IBMPartner Feed
+          ↗ View IBM Content Feed
         </Button>
       </div>
 
@@ -1017,7 +1017,7 @@ function GlobalFeed({ onClose }) {
   return (
     <div className="hub-right-panel hub-feed-view">
       <div style={{ marginBottom: '1.25rem' }}>
-        <h2 className="hub-heading-lg">#IBMPartner Global Content Feed</h2>
+        <h2 className="hub-heading-lg">IBM Content Feed</h2>
         <p className="hub-muted">Every IBM-sponsored post, across all creators — {feed.length} posts</p>
       </div>
 
@@ -1218,7 +1218,7 @@ export default function App() {
         <HeaderName href="#" prefix="IBM">Influencer Intelligence Hub</HeaderName>
         <HeaderNavigation aria-label="IBM Influencer Hub">
           <HeaderMenuItem isActive={!showFeed} onClick={() => setShowFeed(false)}>Influencers</HeaderMenuItem>
-          <HeaderMenuItem isActive={showFeed} onClick={() => setShowFeed(true)}>#IBMPartner Feed</HeaderMenuItem>
+          <HeaderMenuItem isActive={showFeed} onClick={() => setShowFeed(true)}>IBM Content Feed</HeaderMenuItem>
         </HeaderNavigation>
       </Header>
 
