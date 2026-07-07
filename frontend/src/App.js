@@ -104,10 +104,19 @@ function StatsBar({ stats }) {
 
 // ── Influencer Form Modal (Add / Edit) ────────────────────────────────────────
 
+const BLANK_PLATFORM = { url: '', handle: '', follower_count: '' };
 const BLANK_FORM = {
-  name: '', type: 'external', persona_group: 'Developer',
-  location: '', bio: '', status: 'active', approval_status: 'pending', owner: '',
+  name: '', persona_group: 'Developer', bio: '', campaigns: '', location: '',
+  platforms: [{ ...BLANK_PLATFORM }],
 };
+
+function platformsFromInfluencer(inf) {
+  const plats = (inf.platforms || []).map(p => ({
+    url: p.url || '', handle: p.handle || '', follower_count: p.follower_count != null ? String(p.follower_count) : '',
+  }));
+  // Ensure at least one slot
+  return plats.length > 0 ? plats : [{ ...BLANK_PLATFORM }];
+}
 
 function InfluencerFormModal({ open, influencer, onClose, onSave, onDelete }) {
   const isEdit = Boolean(influencer);
@@ -118,24 +127,45 @@ function InfluencerFormModal({ open, influencer, onClose, onSave, onDelete }) {
       setForm(influencer
         ? {
             name: influencer.name || '',
-            type: influencer.type || 'external',
-            persona_group: influencer.persona_group || 'Developer / Engineer',
-            location: influencer.location || '',
+            persona_group: influencer.persona_group || 'Developer',
             bio: influencer.bio || '',
-            status: influencer.status || 'active',
-            approval_status: influencer.approval_status || 'pending',
-            owner: influencer.owner || '',
+            campaigns: (influencer.campaign_types || []).join(', '),
+            location: influencer.location || '',
+            platforms: platformsFromInfluencer(influencer),
           }
-        : BLANK_FORM
+        : { ...BLANK_FORM, platforms: [{ ...BLANK_PLATFORM }] }
       );
     }
   }, [open, influencer]);
 
   function set(k, v) { setForm(prev => ({ ...prev, [k]: v })); }
+  function setPlatform(i, k, v) {
+    setForm(prev => {
+      const platforms = prev.platforms.map((p, idx) => idx === i ? { ...p, [k]: v } : p);
+      return { ...prev, platforms };
+    });
+  }
+  function addPlatform() {
+    setForm(prev => ({ ...prev, platforms: [...prev.platforms, { ...BLANK_PLATFORM }] }));
+  }
+  function removePlatform(i) {
+    setForm(prev => ({ ...prev, platforms: prev.platforms.filter((_, idx) => idx !== i) }));
+  }
 
   function handleSave() {
     if (!form.name.trim()) return;
-    onSave(form);
+    const platforms = form.platforms
+      .filter(p => p.url.trim())
+      .map(p => ({
+        url: p.url.trim(),
+        handle: p.handle.trim(),
+        follower_count: parseInt(String(p.follower_count).replace(/[^0-9]/g, ''), 10) || 0,
+        platform: PLATFORM_FROM_URL(p.url.trim()) || 'Other',
+      }));
+    const campaign_types = form.campaigns
+      ? form.campaigns.split(/[,;]+/).map(c => c.trim()).filter(Boolean)
+      : [];
+    onSave({ ...form, platforms, campaign_types });
   }
 
   return (
@@ -147,49 +177,70 @@ function InfluencerFormModal({ open, influencer, onClose, onSave, onDelete }) {
       primaryButtonText={isEdit ? 'Save Changes' : 'Add Influencer'}
       secondaryButtonText="Cancel"
       onSecondarySubmit={onClose}
-      size="sm"
+      size="md"
     >
       <div className="hub-form-grid">
         <TextInput
           id="inf-name" labelText="Name *" value={form.name}
           onChange={e => set('name', e.target.value)}
           invalid={form.name.trim() === ''} invalidText="Name is required"
+          className="hub-form-full"
         />
-        <Select id="inf-type" labelText="Type" value={form.type} onChange={e => set('type', e.target.value)}>
-          <SelectItem value="external" text="External" />
-          <SelectItem value="internal" text="IBM Social League" />
-        </Select>
-        <Select id="inf-status" labelText="Status" value={form.status} onChange={e => set('status', e.target.value)}>
-          <SelectItem value="active" text="Active" />
-          <SelectItem value="dormant" text="Dormant" />
-          <SelectItem value="dnu" text="Do Not Use" />
-        </Select>
-        <Select id="inf-approval" labelText="Approval" value={form.approval_status} onChange={e => set('approval_status', e.target.value)}>
-          <SelectItem value="pending" text="Pending" />
-          <SelectItem value="approved" text="Approved" />
-          <SelectItem value="declined" text="Declined" />
-        </Select>
-        <Select id="inf-persona" labelText="Persona Group" value={form.persona_group} onChange={e => set('persona_group', e.target.value)} className="hub-form-full">
+        <Select id="inf-persona" labelText="Persona" value={form.persona_group}
+          onChange={e => set('persona_group', e.target.value)} className="hub-form-full">
           {['Developer','AI Decision Makers','Data Leaders','Secure','Infrastructure','Industry','Sports, Entertainment, and Partnerships','CxO programs','Digital Sovereignty'].map(p => (
             <SelectItem key={p} value={p} text={p} />
           ))}
         </Select>
-        <TextInput
-          id="inf-location" labelText="Location" value={form.location}
-          onChange={e => set('location', e.target.value)}
-          className="hub-form-full"
-        />
-        <TextInput
-          id="inf-owner" labelText="IBM Point of Contact" value={form.owner}
-          onChange={e => set('owner', e.target.value)}
-          className="hub-form-full"
-        />
         <TextArea
-          id="inf-bio" labelText="Bio" value={form.bio}
+          id="inf-bio" labelText="Description" value={form.bio}
           onChange={e => set('bio', e.target.value)}
           rows={3} className="hub-form-full"
         />
+        <TextInput
+          id="inf-campaigns" labelText="Campaigns" placeholder="e.g. IBM Think, F1"
+          value={form.campaigns} onChange={e => set('campaigns', e.target.value)}
+          className="hub-form-full"
+          helperText="Separate multiple campaigns with commas"
+        />
+        <Select id="inf-geo" labelText="Geos" value={form.location}
+          onChange={e => set('location', e.target.value)} className="hub-form-full">
+          <SelectItem value="" text="Select a geo" />
+          {['Americas','UK','EMEA','India'].map(g => <SelectItem key={g} value={g} text={g} />)}
+        </Select>
       </div>
+
+      <div style={{ marginTop: '1.25rem' }}>
+        <p style={{ fontSize: '0.875rem', fontWeight: 600, marginBottom: '0.5rem' }}>Social Platforms</p>
+        {form.platforms.map((p, i) => (
+          <div key={i} className="hub-platform-form-row">
+            <TextInput
+              id={`inf-purl-${i}`} labelText={`URL #${i + 1}`} value={p.url}
+              onChange={e => setPlatform(i, 'url', e.target.value)}
+              placeholder="https://linkedin.com/in/..."
+            />
+            <TextInput
+              id={`inf-phandle-${i}`} labelText="Handle" value={p.handle}
+              onChange={e => setPlatform(i, 'handle', e.target.value)}
+              placeholder="@username"
+            />
+            <TextInput
+              id={`inf-pcount-${i}`} labelText="Follower Count" value={p.follower_count}
+              onChange={e => setPlatform(i, 'follower_count', e.target.value)}
+              placeholder="e.g. 12500"
+            />
+            {form.platforms.length > 1 && (
+              <button className="hub-platform-remove" onClick={() => removePlatform(i)} aria-label="Remove platform">✕</button>
+            )}
+          </div>
+        ))}
+        {form.platforms.length < 4 && (
+          <Button kind="ghost" size="sm" onClick={addPlatform} style={{ marginTop: '0.5rem' }}>
+            + Add platform
+          </Button>
+        )}
+      </div>
+
       {isEdit && (
         <div style={{ marginTop: '1.5rem', paddingTop: '1rem', borderTop: '1px solid var(--cds-border-subtle-00)' }}>
           <Button kind="danger--ghost" size="sm" onClick={() => onDelete(influencer.id)}>
