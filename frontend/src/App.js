@@ -587,32 +587,14 @@ function LeftPanel({ influencers, selectedId, onSelect, onSearch, onFilter, filt
             { value:'internal', text:'IBM Social League' },
             { value:'external', text:'External' },
           ]} onChange={v => onFilter('type', v)} />
-          <FilterSelect label="Status" value={filters.status} options={[
-            { value:'', text:'All Statuses' },
-            { value:'active', text:'Active' },
-            { value:'dormant', text:'Dormant' },
-            { value:'dnu', text:'Do Not Use' },
-          ]} onChange={v => onFilter('status', v)} />
           <FilterSelect label="Platform" value={filters.platform} options={[
             { value:'', text:'All Platforms' },
             ...['YouTube','TikTok','Instagram','X','LinkedIn','Reddit'].map(p => ({ value:p, text:p })),
           ]} onChange={v => onFilter('platform', v)} />
-          <FilterSelect label="Approval" value={filters.approval_status} options={[
-            { value:'', text:'All Approvals' },
-            { value:'approved', text:'Approved' },
-            { value:'pending', text:'Pending' },
-            { value:'declined', text:'Declined' },
-          ]} onChange={v => onFilter('approval_status', v)} />
           <FilterSelect label="Persona" value={filters.persona_group} options={[
             { value:'', text:'All Personas' },
             ...['Developer / Engineer','Data & AI Specialist','Cybersecurity Expert','C-Suite / Executive','Entrepreneur / Founder','Thought Leader (Author, Speaker, Analyst)','Media / Content Creator (Podcast, YouTube)','Educator / Researcher','Sustainability / Climate','FinTech / Finance'].map(p => ({ value:p, text:p })),
           ]} onChange={v => onFilter('persona_group', v)} />
-          <FilterSelect label="IBM Content" value={filters.has_content} options={[
-            { value:'', text:'Any' },
-            { value:'true', text:'Has IBM Content' },
-          ]} onChange={v => onFilter('has_content', v)} />
-          <FilterSelect label="Campaign Type" value={filters.campaign_type} options={CAMPAIGN_TYPE_OPTIONS}
-            onChange={v => onFilter('campaign_type', v)} />
           <FilterSelect label="Events" value={filters.events} options={EVENT_OPTIONS}
             onChange={v => onFilter('events', v)} />
         </div>
