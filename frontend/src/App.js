@@ -267,25 +267,53 @@ const PLATFORM_FROM_URL = (url) => {
 };
 
 function parseCsv(text) {
-  const lines = text.split(/\r?\n/).filter(l => l.trim());
-  if (lines.length < 2) return [];
-  const headers = lines[0].split(',').map(h => h.trim().toLowerCase().replace(/\s+/g, '_'));
-  return lines.slice(1).map(line => {
-    // Handle quoted fields
-    const cols = [];
-    let cur = '';
-    let inQuote = false;
-    for (let i = 0; i < line.length; i++) {
-      const ch = line[i];
-      if (ch === '"') { inQuote = !inQuote; }
-      else if (ch === ',' && !inQuote) { cols.push(cur.trim()); cur = ''; }
-      else { cur += ch; }
+  // RFC 4180-compliant parser: handles quoted fields that span multiple lines
+  const normalized = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+  if (!normalized.trim()) return [];
+
+  // Tokenise the entire file character-by-character so newlines inside
+  // quoted fields don't split rows prematurely.
+  const rows = [];
+  let cols = [];
+  let cur = '';
+  let inQuote = false;
+  for (let i = 0; i < normalized.length; i++) {
+    const ch = normalized[i];
+    if (inQuote) {
+      if (ch === '"') {
+        // Peek: escaped quote ("") stays in value; closing quote ends field
+        if (normalized[i + 1] === '"') { cur += '"'; i++; }
+        else { inQuote = false; }
+      } else {
+        cur += ch;
+      }
+    } else {
+      if (ch === '"') {
+        inQuote = true;
+      } else if (ch === ',') {
+        cols.push(cur.trim());
+        cur = '';
+      } else if (ch === '\n') {
+        cols.push(cur.trim());
+        cur = '';
+        rows.push(cols);
+        cols = [];
+      } else {
+        cur += ch;
+      }
     }
-    cols.push(cur.trim());
+  }
+  // flush last field / row
+  cols.push(cur.trim());
+  if (cols.some(c => c !== '')) rows.push(cols);
+
+  if (rows.length < 2) return [];
+  const headers = rows[0].map(h => h.toLowerCase().replace(/\s+/g, '_'));
+  return rows.slice(1).map(cols => {
     const row = {};
     headers.forEach((h, i) => { row[h] = cols[i] || ''; });
     return row;
-  }).filter(r => r.name);
+  }).filter(r => r.name && r.name.trim());
 }
 
 // Normalise a CSV header key: lowercase, collapse spaces/special chars to underscores
