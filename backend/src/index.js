@@ -4,6 +4,11 @@ const path = require('path');
 require('dotenv').config();
 
 const {
+  createInfluencer,
+  deleteInfluencer,
+  findInfluencerByName,
+  updateInfluencer,
+  saveFeedback,
   getContentFeed,
   getInfluencerById,
   getInfluencerContent,
@@ -32,9 +37,52 @@ app.get('/api/influencers', (req, res) => {
 });
 
 app.post('/api/influencers', (req, res) => {
-  const { name, type } = req.body;
-  if (!name || !type) return res.status(400).json({ error: 'name and type are required' });
-  res.status(501).json({ error: 'Creating influencers is not supported for the SQLite dataset.' });
+  const { name } = req.body;
+  if (!name || !String(name).trim()) return res.status(400).json({ error: 'name is required' });
+  try {
+    const influencer = createInfluencer(req.body);
+    const { rate, ...safe } = influencer;
+    res.status(201).json(safe);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Upsert by name: update existing if name matches, otherwise create new
+app.post('/api/influencers/upsert', (req, res) => {
+  const { name } = req.body;
+  if (!name || !String(name).trim()) return res.status(400).json({ error: 'name is required' });
+  try {
+    const existing = findInfluencerByName(name);
+    if (existing) {
+      const influencer = updateInfluencer(existing.id, req.body);
+      const { rate, ...safe } = influencer;
+      return res.json({ ...safe, _upserted: 'updated' });
+    }
+    const influencer = createInfluencer(req.body);
+    const { rate, ...safe } = influencer;
+    res.status(201).json({ ...safe, _upserted: 'created' });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.put('/api/influencers/:id', (req, res) => {
+  const existing = getInfluencerById(req.params.id);
+  if (!existing) return res.status(404).json({ error: 'Not found' });
+  try {
+    const influencer = updateInfluencer(req.params.id, req.body);
+    const { rate, ...safe } = influencer;
+    res.json(safe);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.delete('/api/influencers/:id', (req, res) => {
+  const deleted = deleteInfluencer(req.params.id);
+  if (!deleted) return res.status(404).json({ error: 'Not found' });
+  res.status(204).end();
 });
 
 app.get('/api/influencers/:id', (req, res) => {
@@ -85,13 +133,8 @@ app.get('/api/influencers/:id/feedback', (req, res) => {
 app.post('/api/influencers/:id/feedback', (req, res) => {
   const influencer = getInfluencerById(req.params.id);
   if (!influencer) return res.status(404).json({ error: 'Not found' });
-  const entry = {
-    id: `f${Date.now()}`,
-    author: req.body.author || 'Anonymous',
-    team: req.body.team || 'campaign',
-    body: req.body.body,
-    created_at: new Date().toISOString().split('T')[0]
-  };
+  if (!req.body.body?.trim()) return res.status(400).json({ error: 'body is required' });
+  const entry = saveFeedback(req.params.id, req.body);
   res.status(201).json(entry);
 });
 

@@ -139,6 +139,12 @@
   flex-shrink: 0;
 }
 
+.hub-list-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
 .hub-list-count {
   padding: 0.375rem 1rem;
   font-size: 0.75rem;
@@ -613,6 +619,13 @@
 .hub-feedback-tile.cds--tile {
   padding: 0.875rem 1rem;
   margin-bottom: 0.5rem;
+}
+
+.hub-feedback-form.cds--tile {
+  padding: 1rem;
+  margin-bottom: 1rem;
+  background: var(--cds-layer-01);
+  border: 1px solid var(--cds-border-subtle-01);
 }
 
 .hub-feedback-header {

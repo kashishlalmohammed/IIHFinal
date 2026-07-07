@@ -11,6 +11,7 @@ import {
   Tile,
   // Inputs
   Search, Button, Dropdown, Tag, Modal, TextInput, TextArea, Select, SelectItem,
+  FileUploader,
   // Tabs
   Tabs, Tab, TabList, TabPanels, TabPanel,
   // Notifications
@@ -179,7 +180,7 @@ const BLANK_FORM = {
   location: '', bio: '', status: 'active', approval_status: 'pending', owner: '',
 };
 
-function InfluencerFormModal({ open, influencer, onClose, onSave }) {
+function InfluencerFormModal({ open, influencer, onClose, onSave, onDelete }) {
   const isEdit = Boolean(influencer);
   const [form, setForm] = useState(BLANK_FORM);
 
@@ -260,6 +261,208 @@ function InfluencerFormModal({ open, influencer, onClose, onSave }) {
           rows={3} className="hub-form-full"
         />
       </div>
+      {isEdit && (
+        <div style={{ marginTop: '1.5rem', paddingTop: '1rem', borderTop: '1px solid var(--cds-border-subtle-00)' }}>
+          <Button kind="danger--ghost" size="sm" onClick={() => onDelete(influencer.id)}>
+            Delete influencer
+          </Button>
+        </div>
+      )}
+    </Modal>
+  );
+}
+
+// ── CSV Upload Modal ──────────────────────────────────────────────────────────
+
+const PLATFORM_FROM_URL = (url) => {
+  if (!url) return null;
+  const u = url.toLowerCase();
+  if (u.includes('youtube.com') || u.includes('youtu.be')) return 'YouTube';
+  if (u.includes('tiktok.com')) return 'TikTok';
+  if (u.includes('instagram.com')) return 'Instagram';
+  if (u.includes('twitter.com') || u.includes('x.com')) return 'X';
+  if (u.includes('linkedin.com')) return 'LinkedIn';
+  if (u.includes('reddit.com')) return 'Reddit';
+  return null;
+};
+
+function parseCsv(text) {
+  const lines = text.split(/\r?\n/).filter(l => l.trim());
+  if (lines.length < 2) return [];
+  const headers = lines[0].split(',').map(h => h.trim().toLowerCase().replace(/\s+/g, '_'));
+  return lines.slice(1).map(line => {
+    // Handle quoted fields
+    const cols = [];
+    let cur = '';
+    let inQuote = false;
+    for (let i = 0; i < line.length; i++) {
+      const ch = line[i];
+      if (ch === '"') { inQuote = !inQuote; }
+      else if (ch === ',' && !inQuote) { cols.push(cur.trim()); cur = ''; }
+      else { cur += ch; }
+    }
+    cols.push(cur.trim());
+    const row = {};
+    headers.forEach((h, i) => { row[h] = cols[i] || ''; });
+    return row;
+  }).filter(r => r.name);
+}
+
+// Normalise a CSV header key: lowercase, collapse spaces/special chars to underscores
+function normKey(h) { return h.trim().toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, ''); }
+
+function csvRowToInfluencer(row) {
+  // Collect numbered platform slots: Social Platform URL #1, Handle #1, Follower Count #1 … up to however many exist
+  const platforms = [];
+  for (let n = 1; n <= 10; n++) {
+    // Accept "social_platform_url_#1", "social_platform_url_1", "social_platform_url__1" etc.
+    const urlKey   = Object.keys(row).find(k => normKey(k) === normKey(`social platform url #${n}`) || normKey(k) === normKey(`social platform url ${n}`));
+    const handleKey = Object.keys(row).find(k => normKey(k) === normKey(`handle #${n}`) || normKey(k) === normKey(`handle ${n}`));
+    const countKey  = Object.keys(row).find(k => normKey(k) === normKey(`follower count #${n}`) || normKey(k) === normKey(`follower count ${n}`));
+    const url = urlKey ? (row[urlKey] || '').trim() : '';
+    if (!url) break; // slots are in order; stop at first empty URL
+    const platform = PLATFORM_FROM_URL(url);
+    const handle   = handleKey ? (row[handleKey] || '').trim() : '';
+    const countRaw = countKey  ? (row[countKey]  || '0') : '0';
+    const follower_count = parseInt(String(countRaw).replace(/[^0-9]/g, ''), 10) || 0;
+    if (platform) platforms.push({ platform, url, handle, follower_count });
+  }
+
+  const typeRaw = (row['type'] || '').toLowerCase();
+  const type = typeRaw.includes('ibm') || typeRaw.includes('internal') || typeRaw.includes('league')
+    ? 'internal' : 'external';
+
+  const personaRaw = row['persona'] || row['persona_group'] || 'Developer / Engineer';
+
+  const campaigns = row['campaigns']
+    ? row['campaigns'].split(/[;|]+/).map(c => c.trim()).filter(Boolean)
+    : [];
+
+  const geos = row['geos'] || row['geo'] || row['location'] || '';
+
+  return {
+    name: row['name'] || '',
+    type,
+    persona_group: personaRaw,
+    bio: row['description'] || row['bio'] || '',
+    location: geos,
+    status: 'active',
+    approval_status: 'pending',
+    platforms,
+    campaign_types: campaigns,
+  };
+}
+
+function CsvUploadModal({ open, onClose, onImport }) {
+  const [file, setFile] = useState(null);
+  const [preview, setPreview] = useState([]);
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    if (!open) { setFile(null); setPreview([]); setError(''); }
+  }, [open]);
+
+  function handleFileChange(e) {
+    const f = e.target?.files?.[0] || (e.addedFiles && e.addedFiles[0]);
+    if (!f) return;
+    if (!f.name.endsWith('.csv')) { setError('Please upload a .csv file.'); return; }
+    setError('');
+    setFile(f);
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      const rows = parseCsv(ev.target.result);
+      if (rows.length === 0) { setError('No valid rows found in CSV.'); setPreview([]); return; }
+      setPreview(rows.slice(0, 5));
+    };
+    reader.readAsText(f);
+  }
+
+  function handleImport() {
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      const rows = parseCsv(ev.target.result);
+      const influencers = rows.map(csvRowToInfluencer).filter(i => i.name.trim());
+      onImport(influencers);
+    };
+    reader.readAsText(file);
+  }
+
+  const expectedCols = 'Name, Type, Persona, Description, Campaigns, Geos, Social Platform URL #1, Handle #1, Follower Count #1, Social Platform URL #2, Handle #2, Follower Count #2, …';
+
+  return (
+    <Modal
+      open={open}
+      onRequestClose={onClose}
+      onRequestSubmit={handleImport}
+      modalHeading="Upload Influencers via CSV"
+      primaryButtonText="Import"
+      primaryButtonDisabled={!file || preview.length === 0}
+      secondaryButtonText="Cancel"
+      onSecondarySubmit={onClose}
+      size="md"
+    >
+      <p style={{ marginBottom: '0.5rem', fontSize: '0.875rem', color: '#57606a' }}>
+        Upload a CSV with the following columns:
+      </p>
+      <p style={{ marginBottom: '1rem', fontSize: '0.8125rem', fontFamily: 'monospace', background: '#f7f8fa', padding: '0.5rem', borderRadius: '4px', wordBreak: 'break-all' }}>
+        {expectedCols}
+      </p>
+      <FileUploader
+        labelTitle="Select CSV file"
+        labelDescription="Only .csv files are accepted"
+        buttonLabel="Add file"
+        accept={['.csv']}
+        filenameStatus="edit"
+        onChange={handleFileChange}
+      />
+      {error && (
+        <InlineNotification
+          kind="error"
+          title={error}
+          style={{ marginTop: '1rem' }}
+          hideCloseButton
+        />
+      )}
+      {preview.length > 0 && (
+        <div style={{ marginTop: '1rem' }}>
+          <p style={{ fontSize: '0.875rem', marginBottom: '0.5rem' }}>
+            Preview (first {preview.length} row{preview.length !== 1 ? 's' : ''} of {file?.name}):
+          </p>
+          <div style={{ overflowX: 'auto' }}>
+            <table style={{ borderCollapse: 'collapse', fontSize: '0.8125rem', width: '100%' }}>
+              <thead>
+                <tr style={{ background: '#f7f8fa', borderBottom: '1px solid #e5e7eb' }}>
+                  {['Name','Type','Persona','Platforms','Geos'].map(h => (
+                    <th key={h} style={{ padding: '4px 8px', textAlign: 'left', fontWeight: 600 }}>{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {preview.map((row, i) => {
+                  const inf = csvRowToInfluencer(row);
+                  const platformSummary = inf.platforms.length
+                    ? inf.platforms.map(p => `${p.platform}${p.handle ? ` (${p.handle})` : ''}`).join(', ')
+                    : '—';
+                  return (
+                    <tr key={i} style={{ borderBottom: '1px solid #e5e7eb' }}>
+                      <td style={{ padding: '4px 8px' }}>{row['name']}</td>
+                      <td style={{ padding: '4px 8px' }}>{row['type']}</td>
+                      <td style={{ padding: '4px 8px' }}>{row['persona'] || row['persona_group'] || '—'}</td>
+                      <td style={{ padding: '4px 8px' }}>{platformSummary}</td>
+                      <td style={{ padding: '4px 8px' }}>{row['geos'] || row['geo'] || row['location'] || '—'}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+          <p style={{ marginTop: '0.5rem', fontSize: '0.8125rem', color: '#57606a' }}>
+            {/* total row count shown after reading full file on import */}
+            Ready to import all rows from this file.
+          </p>
+        </div>
+      )}
     </Modal>
   );
 }
@@ -364,7 +567,7 @@ function FilterSelect({ label, value, options, onChange }) {
   );
 }
 
-function LeftPanel({ influencers, selectedId, onSelect, onSearch, onFilter, filters, searchQuery, onViewFeed, onAdd, onEdit }) {
+function LeftPanel({ influencers, selectedId, onSelect, onSearch, onFilter, filters, searchQuery, onViewFeed, onAdd, onEdit, onUploadCsv }) {
   return (
     <div className="hub-left-panel">
       <div className="hub-filters">
@@ -421,7 +624,10 @@ function LeftPanel({ influencers, selectedId, onSelect, onSearch, onFilter, filt
 
       <div className="hub-list-header">
         <p className="hub-list-count">{influencers.length} influencer{influencers.length !== 1 ? 's' : ''}</p>
-        <Button kind="primary" size="sm" onClick={onAdd} className="hub-add-btn">+ Add</Button>
+        <div className="hub-list-header-actions">
+          <Button kind="ghost" size="sm" onClick={onUploadCsv} className="hub-add-btn">↑ Upload CSV</Button>
+          <Button kind="primary" size="sm" onClick={onAdd} className="hub-add-btn">+ Add</Button>
+        </div>
       </div>
 
       <div className="hub-card-list">
@@ -462,7 +668,11 @@ function OverviewTab({ influencer, onRequestRate }) {
           {(influencer.platforms || []).map(p => (
             <Tile key={p.platform} className="hub-platform-card">
               <PlatformTag platform={p.platform} size="lg" />
-              <p className="hub-platform-handle">{p.handle}</p>
+              <p className="hub-platform-handle">
+                {p.url
+                  ? <a href={p.url} target="_blank" rel="noopener noreferrer">{p.handle || p.url}</a>
+                  : (p.handle || '—')}
+              </p>
               <p className="hub-muted">{fmt(p.follower_count)} followers</p>
             </Tile>
           ))}
@@ -683,9 +893,32 @@ function ContentTab({ influencer }) {
 // ── Feedback Tab ──────────────────────────────────────────────────────────────
 
 function FeedbackTab({ influencer }) {
-  const all = influencer.feedback || [];
-  const campaign = all.filter(f => f.team === 'campaign');
-  const devrel   = all.filter(f => f.team === 'devrel');
+  const [entries, setEntries] = useState(influencer.feedback || []);
+  const [open, setOpen]       = useState(false);
+  const [form, setForm]       = useState({ author: '', team: 'campaign', body: '' });
+  const [saving, setSaving]   = useState(false);
+
+  const campaign = entries.filter(f => f.team === 'campaign');
+  const devrel   = entries.filter(f => f.team === 'devrel');
+
+  function setF(k, v) { setForm(prev => ({ ...prev, [k]: v })); }
+
+  async function handleSubmit() {
+    if (!form.body.trim()) return;
+    setSaving(true);
+    const r = await fetch(`${API}/influencers/${influencer.id}/feedback`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(form),
+    });
+    if (r.ok) {
+      const entry = await r.json();
+      setEntries(prev => [entry, ...prev]);
+      setForm({ author: '', team: 'campaign', body: '' });
+      setOpen(false);
+    }
+    setSaving(false);
+  }
 
   const Section = ({ title, items }) => (
     <div className="hub-section">
@@ -707,6 +940,42 @@ function FeedbackTab({ influencer }) {
 
   return (
     <div className="hub-tab-content">
+      <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '0.5rem' }}>
+        <Button kind="primary" size="sm" onClick={() => setOpen(v => !v)}>
+          {open ? 'Cancel' : '+ Add Feedback'}
+        </Button>
+      </div>
+
+      {open && (
+        <Tile className="hub-feedback-form">
+          <TextInput
+            id="fb-author" labelText="Your name" value={form.author}
+            onChange={e => setF('author', e.target.value)}
+          />
+          <Select id="fb-team" labelText="Team" value={form.team}
+            onChange={e => setF('team', e.target.value)}
+            style={{ marginTop: '0.75rem' }}
+          >
+            <SelectItem value="campaign" text="Campaign Team" />
+            <SelectItem value="devrel"   text="IBM Developer Relations" />
+          </Select>
+          <TextArea
+            id="fb-body" labelText="Feedback *" value={form.body}
+            onChange={e => setF('body', e.target.value)}
+            rows={3}
+            invalid={form.body.trim() === '' && saving}
+            invalidText="Feedback cannot be empty"
+            style={{ marginTop: '0.75rem' }}
+          />
+          <div style={{ display: 'flex', gap: '0.5rem', marginTop: '1rem' }}>
+            <Button kind="primary" size="sm" onClick={handleSubmit} disabled={saving}>
+              {saving ? 'Saving…' : 'Submit'}
+            </Button>
+            <Button kind="ghost" size="sm" onClick={() => setOpen(false)}>Cancel</Button>
+          </div>
+        </Tile>
+      )}
+
       <Section title="Campaign Team" items={campaign} />
       <Section title="IBM Developer Relations" items={devrel} />
     </div>
@@ -723,15 +992,6 @@ function ProfileView({ influencerId, localOverrides = {} }) {
 
   useEffect(() => {
     if (!influencerId) { setInfluencer(null); return; }
-    // Local-only influencers (id starts with "local-") don't exist on the server
-    if (String(influencerId).startsWith('local-')) {
-      const override = localOverrides[influencerId] || {};
-      setInfluencer({
-        id: influencerId, score: {}, platforms: [], content: [],
-        events: [], campaign_types: [], feedback: [], ...override,
-      });
-      return;
-    }
     setLoading(true);
     fetch(`${API}/influencers/${influencerId}`)
       .then(r => r.json())
@@ -984,6 +1244,7 @@ export default function App() {
   const [showFeed, setShowFeed] = useState(false);
   const [sideNavExpanded, setSideNavExpanded] = useState(false);
   const [formModal, setFormModal] = useState({ open: false, influencer: null });
+  const [csvModal, setCsvModal] = useState(false);
   const nlTimer = useRef(null);
 
   useEffect(() => {
@@ -1024,30 +1285,60 @@ export default function App() {
   const handleSelect = useCallback((id) => { setSelected(id); setShowFeed(false); }, []);
   const handleFilter = useCallback((k, v) => setFilters(prev => ({ ...prev, [k]: v })), []);
   const handleViewFeed = useCallback(() => setShowFeed(true), []);
-  const handleOpenAdd  = useCallback(() => setFormModal({ open: true, influencer: null }), []);
-  const handleOpenEdit = useCallback((inf) => setFormModal({ open: true, influencer: inf }), []);
-  const handleCloseForm = useCallback(() => setFormModal({ open: false, influencer: null }), []);
+  const handleOpenAdd     = useCallback(() => setFormModal({ open: true, influencer: null }), []);
+  const handleOpenEdit    = useCallback((inf) => setFormModal({ open: true, influencer: inf }), []);
+  const handleCloseForm   = useCallback(() => setFormModal({ open: false, influencer: null }), []);
+  const handleOpenCsv   = useCallback(() => setCsvModal(true), []);
+  const handleCloseCsv  = useCallback(() => setCsvModal(false), []);
 
-  function handleFormSave(formData) {
+  const handleCsvImport = useCallback(async (newInfluencers) => {
+    const results = [];
+    for (const inf of newInfluencers) {
+      const r = await fetch(`${API}/influencers/upsert`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(inf),
+      });
+      if (r.ok) results.push(await r.json());
+    }
+    setList(prev => {
+      // Replace updated entries in-place, prepend newly created ones
+      const updated = results.filter(r => r._upserted === 'updated');
+      const created = results.filter(r => r._upserted === 'created');
+      const updatedIds = new Set(updated.map(r => r.id));
+      const updatedMap = Object.fromEntries(updated.map(r => [r.id, r]));
+      const merged = prev.map(i => updatedIds.has(i.id) ? updatedMap[i.id] : i);
+      return [...created, ...merged];
+    });
+    setCsvModal(false);
+  }, []);
+
+  const handleDelete = useCallback(async (id) => {
+    await fetch(`${API}/influencers/${id}`, { method: 'DELETE' });
+    setList(prev => prev.filter(i => i.id !== id));
+    setLocalOverrides(prev => { const next = { ...prev }; delete next[id]; return next; });
+    setSelected(s => s === id ? null : s);
+    setFormModal({ open: false, influencer: null });
+  }, []);
+
+  async function handleFormSave(formData) {
     if (formModal.influencer) {
-      // Edit: store override
+      // Edit: store override locally (no backend edit endpoint yet)
       setLocalOverrides(prev => ({
         ...prev,
         [formModal.influencer.id]: { ...prev[formModal.influencer.id], ...formData },
       }));
     } else {
-      // Add: prepend a synthetic influencer to the list
-      const newInf = {
-        id: `local-${Date.now()}`,
-        score: {},
-        platforms: [],
-        content: [],
-        events: [],
-        campaign_types: [],
-        feedback: [],
-        ...formData,
-      };
-      setList(prev => [newInf, ...prev]);
+      // Add: persist to backend
+      const r = await fetch(`${API}/influencers`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(formData),
+      });
+      if (r.ok) {
+        const newInf = await r.json();
+        setList(prev => [newInf, ...prev]);
+      }
     }
     setFormModal({ open: false, influencer: null });
   }
@@ -1078,6 +1369,7 @@ export default function App() {
             onViewFeed={handleViewFeed}
             onAdd={handleOpenAdd}
             onEdit={handleOpenEdit}
+            onUploadCsv={handleOpenCsv}
           />
           {showFeed
             ? <GlobalFeed onClose={() => setShowFeed(false)} />
@@ -1091,6 +1383,12 @@ export default function App() {
         influencer={formModal.influencer}
         onClose={handleCloseForm}
         onSave={handleFormSave}
+        onDelete={handleDelete}
+      />
+      <CsvUploadModal
+        open={csvModal}
+        onClose={handleCloseCsv}
+        onImport={handleCsvImport}
       />
     </>
   );

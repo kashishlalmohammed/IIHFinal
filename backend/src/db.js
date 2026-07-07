@@ -1,7 +1,7 @@
 const { DatabaseSync } = require('node:sqlite');
 const path = require('path');
 
-const db = new DatabaseSync(path.join(__dirname, '../data/influencers.sqlite'), { readonly: true });
+const db = new DatabaseSync(path.join(__dirname, '../data/influencers.sqlite'));
 
 function toScore(row) {
   return {
@@ -50,6 +50,25 @@ function listCampaignTypes(influencerId) {
   ).all(influencerId).map(row => row.campaign_type);
 }
 
+function listFeedback(influencerId) {
+  return db.prepare(
+    `SELECT id, author, team, body, created_at
+     FROM influencer_feedback
+     WHERE influencer_id = ?
+     ORDER BY created_at DESC, id DESC`
+  ).all(influencerId);
+}
+
+function saveFeedback(influencerId, { author, team, body }) {
+  const id = `f${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+  const created_at = new Date().toISOString().split('T')[0];
+  db.prepare(
+    `INSERT INTO influencer_feedback (id, influencer_id, author, team, body, created_at)
+     VALUES (?, ?, ?, ?, ?, ?)`
+  ).run(id, influencerId, author || 'Anonymous', team || 'campaign', body, created_at);
+  return { id, author: author || 'Anonymous', team: team || 'campaign', body, created_at };
+}
+
 function mapInfluencer(row) {
   return {
     id: row.id,
@@ -69,7 +88,7 @@ function mapInfluencer(row) {
     content: listContent(row.id),
     events: listEvents(row.id),
     campaign_types: listCampaignTypes(row.id),
-    feedback: [],
+    feedback: listFeedback(row.id),
   };
 }
 
@@ -271,7 +290,87 @@ function getContentFeed(filters = {}) {
   ).all(...params);
 }
 
+function findInfluencerByName(name) {
+  const row = db.prepare('SELECT * FROM influencers WHERE LOWER(name) = LOWER(?)').get(name);
+  return row ? mapInfluencer(row) : null;
+}
+
+function updateInfluencer(id, { name, type, persona_group, location, bio, status, approval_status, owner, platforms, campaign_types }) {
+  // Update scalar fields (only overwrite non-empty values from CSV)
+  db.prepare(
+    `UPDATE influencers SET
+       name             = COALESCE(NULLIF(?, ''), name),
+       type             = COALESCE(NULLIF(?, ''), type),
+       persona_group    = COALESCE(NULLIF(?, ''), persona_group),
+       location         = COALESCE(NULLIF(?, ''), location),
+       bio              = COALESCE(NULLIF(?, ''), bio),
+       status           = COALESCE(NULLIF(?, ''), status),
+       approval_status  = COALESCE(NULLIF(?, ''), approval_status),
+       owner            = COALESCE(NULLIF(?, ''), owner)
+     WHERE id = ?`
+  ).run(name || '', type || '', persona_group || '', location || '', bio || '', status || '', approval_status || '', owner || '', id);
+
+  // Replace platforms if any were provided in the CSV
+  if (Array.isArray(platforms) && platforms.length > 0) {
+    db.prepare('DELETE FROM influencer_platforms WHERE influencer_id = ?').run(id);
+    for (const p of platforms) {
+      db.prepare(
+        `INSERT INTO influencer_platforms (influencer_id, platform, handle, url, follower_count) VALUES (?, ?, ?, ?, ?)`
+      ).run(id, p.platform, p.handle || '', p.url || '', p.follower_count || 0);
+    }
+  }
+
+  // Replace campaign types if any were provided
+  if (Array.isArray(campaign_types) && campaign_types.length > 0) {
+    db.prepare('DELETE FROM influencer_campaign_types WHERE influencer_id = ?').run(id);
+    for (const ct of campaign_types) {
+      db.prepare(
+        `INSERT INTO influencer_campaign_types (influencer_id, campaign_type) VALUES (?, ?)`
+      ).run(id, ct);
+    }
+  }
+
+  return getInfluencerById(id);
+}
+
+function createInfluencer({ name, type, persona_group, location, bio, status, approval_status, owner, platforms = [], campaign_types = [] }) {
+  const id = `inf-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+  const slug = `${String(name).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')}-${id}`;
+  db.prepare(
+    `INSERT INTO influencers (id, name, slug, type, persona_group, location, bio, status, approval_status, owner)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+  ).run(id, name, slug, type || 'external', persona_group || 'Developer / Engineer', location || '', bio || '', status || 'active', approval_status || 'pending', owner || '');
+
+  for (const p of platforms) {
+    db.prepare(
+      `INSERT INTO influencer_platforms (influencer_id, platform, handle, url, follower_count) VALUES (?, ?, ?, ?, ?)`
+    ).run(id, p.platform, p.handle || '', p.url || '', p.follower_count || 0);
+  }
+
+  for (const ct of campaign_types) {
+    db.prepare(
+      `INSERT INTO influencer_campaign_types (influencer_id, campaign_type) VALUES (?, ?)`
+    ).run(id, ct);
+  }
+
+  return getInfluencerById(id);
+}
+
+function deleteInfluencer(id) {
+  db.prepare('DELETE FROM influencer_platforms WHERE influencer_id = ?').run(id);
+  db.prepare('DELETE FROM influencer_campaign_types WHERE influencer_id = ?').run(id);
+  db.prepare('DELETE FROM influencer_events WHERE influencer_id = ?').run(id);
+  db.prepare('DELETE FROM influencer_content WHERE influencer_id = ?').run(id);
+  const result = db.prepare('DELETE FROM influencers WHERE id = ?').run(id);
+  return result.changes > 0;
+}
+
 module.exports = {
+  createInfluencer,
+  deleteInfluencer,
+  findInfluencerByName,
+  updateInfluencer,
+  saveFeedback,
   getContentFeed,
   getInfluencerById,
   getInfluencerContent,
