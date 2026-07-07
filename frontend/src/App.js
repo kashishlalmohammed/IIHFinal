@@ -595,7 +595,7 @@ function LeftPanel({ influencers, selectedId, onSelect, onSearch, onFilter, filt
             { value:'', text:'All Personas' },
             ...['Developer','AI Decision Makers','Data Leaders','Secure','Infrastructure','Industry','Sports, Entertainment, and Partnerships','CxO programs','Digital Sovereignty'].map(p => ({ value:p, text:p })),
           ]} onChange={v => onFilter('persona_group', v)} />
-          <FilterSelect label="Events" value={filters.events} options={EVENT_OPTIONS}
+          <FilterSelect label="Campaigns" value={filters.events} options={EVENT_OPTIONS}
             onChange={v => onFilter('events', v)} />
           <FilterSelect label="Geo" value={filters.location} options={[
             { value: '', text: 'All Geos' },
