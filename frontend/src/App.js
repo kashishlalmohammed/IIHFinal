@@ -1166,8 +1166,8 @@ function SocialLeagueView() {
               { value: '', text: 'All' },
               { value: '1', text: 'Yes' },
             ]} onChange={v => setFilterAI(v)} />
-            <FilterSelect label="Location" value={filterGeo} options={[
-              { value: '', text: 'All Locations' },
+            <FilterSelect label="Geos" value={filterGeo} options={[
+              { value: '', text: 'All Geos' },
               { value: 'Americas', text: 'Americas' },
               { value: 'UK', text: 'UK' },
               { value: 'EMEA', text: 'EMEA' },
