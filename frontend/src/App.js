@@ -610,7 +610,7 @@ function LeftPanel({ influencers, selectedId, onSelect, onSearch, onFilter, filt
 
 // ── Overview Tab ──────────────────────────────────────────────────────────────
 
-function OverviewTab({ influencer, onRequestRate }) {
+function OverviewTab({ influencer }) {
   return (
     <div className="hub-tab-content">
       <div className="hub-section">
@@ -663,24 +663,6 @@ function OverviewTab({ influencer, onRequestRate }) {
         </div>
       )}
 
-      <div className="hub-section hub-meta-row">
-        <Tile className="hub-meta-tile">
-          <p className="hub-section-label">IBM Point of Contact</p>
-          <p className="hub-body-text">{influencer.owner || '—'}</p>
-        </Tile>
-        <Tile className="hub-meta-tile">
-          <p className="hub-section-label">Last Collaborated</p>
-          <p className="hub-body-text">{influencer.last_collaborated || '—'}</p>
-        </Tile>
-      </div>
-
-      {influencer.type === 'external' && (
-        <div style={{ marginTop: '1rem' }}>
-          <Button kind="tertiary" size="sm" onClick={onRequestRate}>
-            Request Rate Information
-          </Button>
-        </div>
-      )}
     </div>
   );
 }
@@ -891,8 +873,6 @@ function FeedbackTab({ influencer }) {
 function ProfileView({ influencerId, localOverrides = {} }) {
   const [influencer, setInfluencer] = useState(null);
   const [loading, setLoading]       = useState(false);
-  const [rateOpen, setRateOpen]     = useState(false);
-  const [rate, setRate]             = useState(null);
 
   useEffect(() => {
     if (!influencerId) { setInfluencer(null); return; }
@@ -905,13 +885,6 @@ function ProfileView({ influencerId, localOverrides = {} }) {
         setLoading(false);
       });
   }, [influencerId, localOverrides]); // eslint-disable-line
-
-  async function fetchRate() {
-    const r = await fetch(`${API}/influencers/${influencerId}/rate`);
-    const d = await r.json();
-    setRate(d.rate);
-    setRateOpen(true);
-  }
 
   if (!influencerId) return (
     <div className="hub-right-panel hub-empty-state">
@@ -973,7 +946,7 @@ function ProfileView({ influencerId, localOverrides = {} }) {
           </TabList>
           <TabPanels>
             <TabPanel style={{ padding: 0 }}>
-              <OverviewTab influencer={influencer} onRequestRate={fetchRate} />
+              <OverviewTab influencer={influencer} />
             </TabPanel>
             <TabPanel style={{ padding: 0 }}>
               <ContentTab influencer={influencer} />
@@ -984,16 +957,6 @@ function ProfileView({ influencerId, localOverrides = {} }) {
           </TabPanels>
         </Tabs>
       </div>
-
-      {/* Gated rate modal */}
-      <Modal open={rateOpen} onRequestClose={() => setRateOpen(false)}
-        modalHeading="Rate Information" passiveModal size="xs">
-        <p className="hub-muted">Previously quoted rate for <strong>{influencer.name}</strong>:</p>
-        <p className="hub-rate-value">{rate || '—'}</p>
-        <p className="hub-muted" style={{ marginTop: '0.5rem', fontSize: '0.75rem' }}>
-          Confirm with the relationship owner before re-engaging.
-        </p>
-      </Modal>
     </div>
   );
 }
