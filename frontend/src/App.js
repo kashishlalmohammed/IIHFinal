@@ -1515,9 +1515,10 @@ function SocialLeagueView() {
                     {selectedMember.member_identity}
                   </Tag>
                   {selectedMember.talks_about_ai === 1 && <Tag type="teal" size="sm">Talks about AI</Tag>}
-                  {selectedMember.collaborate && selectedMember.collaborate !== 'No' && (
-                    <Tag type="green" size="sm">Collaborate: {selectedMember.collaborate}</Tag>
-                  )}
+                  {selectedMember.collaborate
+                    ? <Tag type={selectedMember.collaborate.toLowerCase() === 'no' ? 'gray' : 'green'} size="sm">Collaborate with SM+I: {selectedMember.collaborate}</Tag>
+                    : <Tag type="gray" size="sm">Collaborate with SM+I: No</Tag>
+                  }
                 </div>
                 <p className="hub-profile-meta">
                   📍 {selectedMember.location || '—'}
