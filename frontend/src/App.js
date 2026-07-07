@@ -1146,6 +1146,154 @@ const IDENTITY_COLORS = {
 
 const SL_BUSINESS_UNITS = ['CHQ','Consulting','Data and AI','Ecosystem','Finance and Operations','Infrastructure & Hybrid Cloud','Quantum','Research','Sales','Security','Software'];
 
+// Shared form fields for add/edit — rendered inside both modals
+function SocialLeagueFormFields({ form, set }) {
+  return (
+    <>
+      <TextInput id="sl-name"      labelText="Name *"              value={form.name || ''}          onChange={e => set('name', e.target.value)}          style={{ marginBottom: '1rem' }} />
+      <TextInput id="sl-title"     labelText="Title"               value={form.title || ''}         onChange={e => set('title', e.target.value)}         style={{ marginBottom: '1rem' }} />
+      <TextInput id="sl-location"  labelText="Location"            value={form.location || ''}      onChange={e => set('location', e.target.value)}      style={{ marginBottom: '1rem' }} />
+      <Select    id="sl-bu"        labelText="Business Unit"       value={form.business_unit || ''} onChange={e => set('business_unit', e.target.value)} style={{ marginBottom: '1rem' }}>
+        <SelectItem value="" text="—" />
+        {SL_BUSINESS_UNITS.map(u => <SelectItem key={u} value={u} text={u} />)}
+      </Select>
+      <TextInput id="sl-email"     labelText="Email"               value={form.email || ''}         onChange={e => set('email', e.target.value)}         style={{ marginBottom: '1rem' }} />
+      <TextInput id="sl-linkedin"  labelText="LinkedIn URL"        value={form.linkedin || ''}      onChange={e => set('linkedin', e.target.value)}      style={{ marginBottom: '1rem' }} />
+      <TextInput id="sl-w3"        labelText="w3 Profile URL"      value={form.w3 || ''}            onChange={e => set('w3', e.target.value)}            style={{ marginBottom: '1rem' }} />
+      <TextInput id="sl-followers" labelText="LinkedIn Followers"  value={form.followers || ''}     onChange={e => set('followers', e.target.value)}     style={{ marginBottom: '1rem' }} />
+      <Select id="sl-identity"    labelText="Member Identity"     value={form.member_identity || ''} onChange={e => set('member_identity', e.target.value)} style={{ marginBottom: '1rem' }}>
+        <SelectItem value="" text="—" />
+        {['Superstars','Engager','Observer','Reserved -'].map(v => <SelectItem key={v} value={v} text={v} />)}
+      </Select>
+      <Select id="sl-collaborate"  labelText="Collaborates with SM+I" value={form.collaborate || ''} onChange={e => set('collaborate', e.target.value)} style={{ marginBottom: '1rem' }}>
+        <SelectItem value="" text="—" />
+        {['Yes','Recommended','No'].map(v => <SelectItem key={v} value={v} text={v} />)}
+      </Select>
+      <Select id="sl-ai"           labelText="Talks about AI"      value={form.talks_about_ai || '0'} onChange={e => set('talks_about_ai', e.target.value)}>
+        <SelectItem value="0" text="No" />
+        <SelectItem value="1" text="Yes" />
+      </Select>
+    </>
+  );
+}
+
+const BLANK_SL_FORM = { name:'', title:'', location:'', business_unit:'', email:'', linkedin:'', w3:'', followers:'', member_identity:'', collaborate:'', talks_about_ai:'0' };
+
+function SocialLeagueAddModal({ open, onClose, onSave }) {
+  const [form, setForm] = useState({ ...BLANK_SL_FORM });
+  useEffect(() => { if (!open) setForm({ ...BLANK_SL_FORM }); }, [open]);
+  function set(k, v) { setForm(f => ({ ...f, [k]: v })); }
+  function handleSubmit() {
+    if (!form.name.trim()) return;
+    onSave({ ...form, followers: parseInt(form.followers, 10) || 0, talks_about_ai: form.talks_about_ai === '1' ? 1 : 0 });
+  }
+  return (
+    <Modal open={open} onRequestClose={onClose} onRequestSubmit={handleSubmit}
+      modalHeading="Add Social League Member" primaryButtonText="Add" secondaryButtonText="Cancel"
+      onSecondarySubmit={onClose} size="sm">
+      <SocialLeagueFormFields form={form} set={set} />
+    </Modal>
+  );
+}
+
+function slCsvRowToMember(row) {
+  // Normalise header: lowercase + collapse non-alphanumeric to _
+  const n = k => k.trim().toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/, '');
+  const get = (...keys) => { for (const k of keys) { const v = row[n(k)]; if (v != null && v !== '') return v; } return ''; };
+  const aiRaw = get('talks_about_ai', 'talks about ai').toLowerCase();
+  return {
+    name:            get('name'),
+    title:           get('title'),
+    linkedin:        get('linkedin'),
+    email:           get('email'),
+    member_identity: get('member_identity', 'member identity'),
+    collaborate:     get('collaborate_with_sm_i', 'collaborate with sm+i', 'collaborate'),
+    followers:       parseInt(String(get('followers')).replace(/[^0-9]/g, ''), 10) || 0,
+    location:        get('location'),
+    business_unit:   get('business_unit___aligned', 'business_unit_aligned', 'business unit + aligned', 'business_unit'),
+    w3:              get('w3'),
+    talks_about_ai:  (aiRaw === 'yes' || aiRaw === '1' || aiRaw === 'v') ? 1 : 0,
+  };
+}
+
+function SocialLeagueCsvUploadModal({ open, onClose, onImport }) {
+  const [file, setFile]       = useState(null);
+  const [preview, setPreview] = useState([]);
+  const [error, setError]     = useState('');
+
+  useEffect(() => { if (!open) { setFile(null); setPreview([]); setError(''); } }, [open]);
+
+  function handleFileChange(e) {
+    const f = e.target?.files?.[0] || (e.addedFiles && e.addedFiles[0]);
+    if (!f) return;
+    if (!f.name.endsWith('.csv')) { setError('Please upload a .csv file.'); return; }
+    setError('');
+    setFile(f);
+    const reader = new FileReader();
+    reader.onload = ev => {
+      const rows = parseCsv(ev.target.result);
+      if (rows.length === 0) { setError('No valid rows found in CSV.'); setPreview([]); return; }
+      setPreview(rows.slice(0, 5));
+    };
+    reader.readAsText(f);
+  }
+
+  function handleImport() {
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = ev => {
+      const rows = parseCsv(ev.target.result);
+      const members = rows.map(slCsvRowToMember).filter(m => m.name.trim());
+      onImport(members);
+    };
+    reader.readAsText(file);
+  }
+
+  return (
+    <Modal open={open} onRequestClose={onClose} onRequestSubmit={handleImport}
+      modalHeading="Upload Social League Members via CSV"
+      primaryButtonText="Import" primaryButtonDisabled={!file || preview.length === 0}
+      secondaryButtonText="Cancel" onSecondarySubmit={onClose} size="md">
+      <p style={{ marginBottom: '1rem', fontSize: '0.8125rem', fontFamily: 'monospace', background: '#f7f8fa', padding: '0.5rem', borderRadius: '4px', wordBreak: 'break-all' }}>
+        Name, Title, LinkedIn, Email, Member Identity, Collaborate with SM+I, Followers, Location, Business Unit + Aligned, w3, Talks about AI
+      </p>
+      <FileUploader labelTitle="Select CSV file" labelDescription="Only .csv files are accepted"
+        buttonLabel="Add file" accept={['.csv']} filenameStatus="edit" onChange={handleFileChange} />
+      {error && <InlineNotification kind="error" title={error} style={{ marginTop: '1rem' }} hideCloseButton />}
+      {preview.length > 0 && (
+        <div style={{ marginTop: '1rem', overflowX: 'auto' }}>
+          <p style={{ fontSize: '0.875rem', marginBottom: '0.5rem' }}>Preview (first {preview.length} rows):</p>
+          <table style={{ borderCollapse: 'collapse', fontSize: '0.8125rem', width: '100%' }}>
+            <thead>
+              <tr style={{ background: '#f7f8fa', borderBottom: '1px solid #e5e7eb' }}>
+                {['Name','Title','Identity','Location','Followers'].map(h => (
+                  <th key={h} style={{ padding: '4px 8px', textAlign: 'left', fontWeight: 600 }}>{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {preview.map((row, i) => {
+                const m = slCsvRowToMember(row);
+                return (
+                  <tr key={i} style={{ borderBottom: '1px solid #e5e7eb' }}>
+                    <td style={{ padding: '4px 8px' }}>{m.name || '—'}</td>
+                    <td style={{ padding: '4px 8px' }}>{m.title || '—'}</td>
+                    <td style={{ padding: '4px 8px' }}>{m.member_identity || '—'}</td>
+                    <td style={{ padding: '4px 8px' }}>{m.location || '—'}</td>
+                    <td style={{ padding: '4px 8px' }}>{m.followers || '—'}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+          <p style={{ marginTop: '0.5rem', fontSize: '0.8125rem', color: '#57606a' }}>Ready to import all rows. Existing members (matched by name) will be updated.</p>
+        </div>
+      )}
+    </Modal>
+  );
+}
+
+
 function SocialLeagueEditModal({ open, member, onClose, onSave }) {
   const [form, setForm] = useState({});
 
@@ -1175,29 +1323,7 @@ function SocialLeagueEditModal({ open, member, onClose, onSave }) {
     <Modal open={open} onRequestClose={onClose} onRequestSubmit={handleSubmit}
       modalHeading="Edit Social League Member" primaryButtonText="Save" secondaryButtonText="Cancel"
       onSecondarySubmit={onClose} size="sm">
-      <TextInput id="sl-name"     labelText="Name"          value={form.name || ''}          onChange={e => set('name', e.target.value)}          style={{ marginBottom: '1rem' }} />
-      <TextInput id="sl-title"    labelText="Title"         value={form.title || ''}         onChange={e => set('title', e.target.value)}         style={{ marginBottom: '1rem' }} />
-      <TextInput id="sl-location" labelText="Location"      value={form.location || ''}      onChange={e => set('location', e.target.value)}      style={{ marginBottom: '1rem' }} />
-      <Select    id="sl-bu"       labelText="Business Unit" value={form.business_unit || ''} onChange={e => set('business_unit', e.target.value)} style={{ marginBottom: '1rem' }}>
-        <SelectItem value="" text="—" />
-        {SL_BUSINESS_UNITS.map(u => <SelectItem key={u} value={u} text={u} />)}
-      </Select>
-      <TextInput id="sl-email"    labelText="Email"         value={form.email || ''}         onChange={e => set('email', e.target.value)}         style={{ marginBottom: '1rem' }} />
-      <TextInput id="sl-linkedin" labelText="LinkedIn URL"  value={form.linkedin || ''}      onChange={e => set('linkedin', e.target.value)}      style={{ marginBottom: '1rem' }} />
-      <TextInput id="sl-w3"       labelText="w3 Profile URL" value={form.w3 || ''}           onChange={e => set('w3', e.target.value)}            style={{ marginBottom: '1rem' }} />
-      <TextInput id="sl-followers" labelText="LinkedIn Followers" value={form.followers || ''} onChange={e => set('followers', e.target.value)}  style={{ marginBottom: '1rem' }} />
-      <Select id="sl-identity"   labelText="Member Identity" value={form.member_identity || ''} onChange={e => set('member_identity', e.target.value)} style={{ marginBottom: '1rem' }}>
-        <SelectItem value="" text="—" />
-        {['Superstars','Engager','Observer','Reserved -'].map(v => <SelectItem key={v} value={v} text={v} />)}
-      </Select>
-      <Select id="sl-collaborate" labelText="Collaborates with SM+I" value={form.collaborate || ''} onChange={e => set('collaborate', e.target.value)} style={{ marginBottom: '1rem' }}>
-        <SelectItem value="" text="—" />
-        {['Yes','Recommended','No'].map(v => <SelectItem key={v} value={v} text={v} />)}
-      </Select>
-      <Select id="sl-ai" labelText="Talks about AI" value={form.talks_about_ai || '0'} onChange={e => set('talks_about_ai', e.target.value)}>
-        <SelectItem value="0" text="No" />
-        <SelectItem value="1" text="Yes" />
-      </Select>
+      <SocialLeagueFormFields form={form} set={set} />
     </Modal>
   );
 }
@@ -1213,6 +1339,8 @@ function SocialLeagueView() {
   const [filterAI, setFilterAI]             = useState('');
   const [selected, setSelected]             = useState(null);
   const [editModal, setEditModal]           = useState(false);
+  const [addModal, setAddModal]             = useState(false);
+  const [csvModal, setCsvModal]             = useState(false);
   const searchTimer = useRef(null);
 
   useEffect(() => {
@@ -1245,6 +1373,38 @@ function SocialLeagueView() {
       setMembers(prev => prev.map(m => m.id === updated.id ? updated : m));
     }
     setEditModal(false);
+  }
+
+  async function handleAdd(formData) {
+    const r = await fetch(`${API}/social-league`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(formData),
+    });
+    if (r.ok) {
+      const created = await r.json();
+      setMembers(prev => [created, ...prev]);
+    }
+    setAddModal(false);
+  }
+
+  async function handleCsvImport(newMembers) {
+    const results = [];
+    for (const m of newMembers) {
+      const r = await fetch(`${API}/social-league/upsert`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(m),
+      });
+      if (r.ok) results.push(await r.json());
+    }
+    // Refresh full list to reflect upserts accurately
+    const params = new URLSearchParams();
+    if (search.trim()) params.set('q', search.trim());
+    fetch(`${API}/social-league?${params}`)
+      .then(r => r.json())
+      .then(data => { if (Array.isArray(data)) setMembers(data); });
+    setCsvModal(false);
   }
 
   return (
@@ -1288,6 +1448,10 @@ function SocialLeagueView() {
         </div>
         <div className="hub-list-header">
           <p className="hub-list-count">{members.length} member{members.length !== 1 ? 's' : ''}</p>
+          <div className="hub-list-header-actions">
+            <Button kind="ghost" size="sm" onClick={() => setCsvModal(true)} className="hub-add-btn">↑ Upload CSV</Button>
+            <Button kind="primary" size="sm" onClick={() => setAddModal(true)} className="hub-add-btn">+ Add</Button>
+          </div>
         </div>
         <div className="hub-card-list">
           {loading && <div style={{ padding: '1rem' }}><Loading small withOverlay={false} /></div>}
@@ -1394,6 +1558,16 @@ function SocialLeagueView() {
         member={selectedMember}
         onClose={() => setEditModal(false)}
         onSave={handleSave}
+      />
+      <SocialLeagueAddModal
+        open={addModal}
+        onClose={() => setAddModal(false)}
+        onSave={handleAdd}
+      />
+      <SocialLeagueCsvUploadModal
+        open={csvModal}
+        onClose={() => setCsvModal(false)}
+        onImport={handleCsvImport}
       />
     </div>
   );

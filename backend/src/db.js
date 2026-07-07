@@ -407,6 +407,28 @@ function listSocialLeague({ q, member_identity, collaborate, geo, business_unit,
   return db.prepare('SELECT * FROM social_league ' + where + ' ORDER BY followers DESC, name ASC').all(...params);
 }
 
+function createSocialLeagueMember({ name, title, linkedin, email, member_identity, collaborate, followers, location, business_unit, w3, talks_about_ai }) {
+  const id = 'sl_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+  db.prepare(`
+    INSERT INTO social_league (id, name, title, linkedin, email, member_identity, collaborate, followers, location, business_unit, w3, talks_about_ai)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `).run(
+    id, name ?? null, title ?? null, linkedin ?? null, email ?? null, member_identity ?? null,
+    collaborate ?? null, followers != null ? parseInt(followers, 10) || 0 : 0,
+    location ?? null, business_unit ?? null, w3 ?? null,
+    talks_about_ai ? 1 : 0
+  );
+  return db.prepare('SELECT * FROM social_league WHERE id = ?').get(id);
+}
+
+function upsertSocialLeagueMember(data) {
+  const { name } = data;
+  if (!name || !String(name).trim()) throw new Error('name is required');
+  const existing = db.prepare('SELECT * FROM social_league WHERE LOWER(TRIM(name)) = LOWER(TRIM(?))').get(name);
+  if (existing) return updateSocialLeagueMember(existing.id, data);
+  return createSocialLeagueMember(data);
+}
+
 function updateSocialLeagueMember(id, { name, title, linkedin, email, member_identity, collaborate, followers, location, business_unit, w3, talks_about_ai }) {
   db.prepare(`
     UPDATE social_league
@@ -439,5 +461,7 @@ module.exports = {
   listInfluencers,
   searchInfluencers,
   listSocialLeague,
+  createSocialLeagueMember,
+  upsertSocialLeagueMember,
   updateSocialLeagueMember,
 };

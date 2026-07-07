@@ -11,6 +11,8 @@ const {
   saveFeedback,
   deleteFeedback,
   listSocialLeague,
+  createSocialLeagueMember,
+  upsertSocialLeagueMember,
   updateSocialLeagueMember,
   getContentFeed,
   getInfluencerById,
@@ -31,6 +33,28 @@ app.use(express.static(uiBuild));
 
 app.get('/api/social-league', (req, res) => {
   res.json(listSocialLeague(req.query));
+});
+
+app.post('/api/social-league', (req, res) => {
+  const { name } = req.body;
+  if (!name || !String(name).trim()) return res.status(400).json({ error: 'name is required' });
+  try {
+    const member = createSocialLeagueMember(req.body);
+    res.status(201).json(member);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/social-league/upsert', (req, res) => {
+  const { name } = req.body;
+  if (!name || !String(name).trim()) return res.status(400).json({ error: 'name is required' });
+  try {
+    const member = upsertSocialLeagueMember(req.body);
+    res.status(200).json(member);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 app.put('/api/social-league/:id', (req, res) => {
