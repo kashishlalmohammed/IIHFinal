@@ -272,6 +272,75 @@ function getInfluencerContent(id) {
   return listContent(id);
 }
 
+function createContentEntry({ creator_name, platform, permalink, campaign, title, content_type, post_date, views, engagement_rate, ibm_product_tag, ibm_partner_confirmed }) {
+  // Try to match creator to an existing influencer (case-insensitive)
+  const influencerRow = creator_name
+    ? db.prepare('SELECT id FROM influencers WHERE LOWER(TRIM(name)) = LOWER(TRIM(?))').get(creator_name)
+    : null;
+
+  let influencer_id = influencerRow?.id;
+
+  // If no match, create a minimal stub so the content has something to link to
+  if (!influencer_id && creator_name && creator_name.trim()) {
+    influencer_id = 'inf_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+    db.prepare(
+      `INSERT INTO influencers (id, name, type, persona_group, location, bio, status, approval_status)
+       VALUES (?, ?, 'external', 'Other', '', '', 'active', 'pending')`
+    ).run(influencer_id, creator_name.trim());
+  }
+
+  if (!influencer_id) throw new Error('creator_name is required');
+
+  const id = 'cnt_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+  const platform_from_url = (url) => {
+    if (!url) return platform || 'Other';
+    const u = url.toLowerCase();
+    if (u.includes('linkedin.com'))  return 'LinkedIn';
+    if (u.includes('youtube.com') || u.includes('youtu.be')) return 'YouTube';
+    if (u.includes('twitter.com') || u.includes('x.com'))   return 'X';
+    if (u.includes('instagram.com')) return 'Instagram';
+    if (u.includes('tiktok.com'))    return 'TikTok';
+    if (u.includes('reddit.com'))    return 'Reddit';
+    return platform || 'Other';
+  };
+  const resolvedPlatform = platform || platform_from_url(permalink);
+
+  db.prepare(
+    `INSERT INTO influencer_content (id, influencer_id, platform, title, content_type, ibm_product_tag, post_date, views, engagement_rate, permalink, ibm_partner_confirmed, campaign)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+  ).run(
+    id, influencer_id, resolvedPlatform,
+    title || null, content_type || null, ibm_product_tag || null,
+    post_date || null, views ? parseInt(views, 10) || 0 : 0,
+    engagement_rate ? parseFloat(engagement_rate) || null : null,
+    permalink || null, ibm_partner_confirmed ? 1 : 0,
+    campaign || null
+  );
+
+  return db.prepare(
+    `SELECT c.*, i.name AS influencer_name, i.type AS influencer_type
+     FROM influencer_content c JOIN influencers i ON i.id = c.influencer_id
+     WHERE c.id = ?`
+  ).get(id);
+}
+
+function upsertContentEntry(data) {
+  // Match by permalink if provided — update if exists, create if not
+  if (data.permalink) {
+    const existing = db.prepare('SELECT id FROM influencer_content WHERE permalink = ?').get(data.permalink);
+    if (existing) {
+      db.prepare(
+        `UPDATE influencer_content SET campaign = COALESCE(NULLIF(?, ''), campaign), title = COALESCE(NULLIF(?, ''), title) WHERE id = ?`
+      ).run(data.campaign || '', data.title || '', existing.id);
+      return db.prepare(
+        `SELECT c.*, i.name AS influencer_name, i.type AS influencer_type
+         FROM influencer_content c JOIN influencers i ON i.id = c.influencer_id WHERE c.id = ?`
+      ).get(existing.id);
+    }
+  }
+  return createContentEntry(data);
+}
+
 function getContentFeed(filters = {}) {
   const clauses = [];
   const params = [];
@@ -289,7 +358,7 @@ function getContentFeed(filters = {}) {
   return db.prepare(
     `SELECT c.*, i.name AS influencer_name, i.type AS influencer_type
      FROM influencer_content c
-     JOIN influencers i ON i.id = c.influencer_id
+     LEFT JOIN influencers i ON i.id = c.influencer_id
      ${where}
      ORDER BY c.post_date DESC, c.id DESC`
   ).all(...params);
@@ -453,6 +522,8 @@ module.exports = {
   saveFeedback,
   deleteFeedback,
   getContentFeed,
+  createContentEntry,
+  upsertContentEntry,
   getInfluencerById,
   getInfluencerContent,
   getInfluencerRate,

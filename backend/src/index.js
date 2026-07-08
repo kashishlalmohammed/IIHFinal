@@ -15,6 +15,8 @@ const {
   upsertSocialLeagueMember,
   updateSocialLeagueMember,
   getContentFeed,
+  createContentEntry,
+  upsertContentEntry,
   getInfluencerById,
   getInfluencerContent,
   getInfluencerRate,
@@ -187,6 +189,28 @@ app.post('/api/influencers/:id/feedback', (req, res) => {
 
 app.get('/api/content/feed', (req, res) => {
   res.json(getContentFeed(req.query));
+});
+
+app.post('/api/content', (req, res) => {
+  const { creator_name } = req.body;
+  if (!creator_name || !String(creator_name).trim()) return res.status(400).json({ error: 'creator_name is required' });
+  try {
+    const entry = createContentEntry(req.body);
+    res.status(201).json(entry);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/content/upsert', (req, res) => {
+  const { creator_name } = req.body;
+  if (!creator_name || !String(creator_name).trim()) return res.status(400).json({ error: 'creator_name is required' });
+  try {
+    const entry = upsertContentEntry(req.body);
+    res.status(200).json(entry);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 app.post('/api/search', (req, res) => {

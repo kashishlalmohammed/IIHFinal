@@ -1010,13 +1010,129 @@ function ProfileView({ influencerId, localOverrides = {}, onEdit }) {
 const FEED_COLS = [
   { key: 'influencer_name', label: 'Creator' },
   { key: 'platform',        label: 'Platform' },
-  { key: 'title',           label: 'Title' },
-  { key: 'ibm_product_tag', label: 'IBM Product' },
+  { key: 'title',           label: 'Title / Link' },
+  { key: 'campaign',        label: 'Campaign' },
   { key: 'post_date',       label: 'Date' },
-  { key: 'views',           label: 'Views' },
-  { key: 'engagement_rate', label: 'ER' },
-  { key: null,              label: 'Link' },
 ];
+
+const BLANK_CONTENT_FORM = { creator_name: '', platform: '', permalink: '', campaign: '', title: '', post_date: '' };
+
+function ContentAddModal({ open, onClose, onSave }) {
+  const [form, setForm] = useState({ ...BLANK_CONTENT_FORM });
+  useEffect(() => { if (!open) setForm({ ...BLANK_CONTENT_FORM }); }, [open]);
+  function set(k, v) { setForm(f => ({ ...f, [k]: v })); }
+  function handleSubmit() {
+    if (!form.creator_name.trim()) return;
+    onSave({ ...form });
+  }
+  return (
+    <Modal open={open} onRequestClose={onClose} onRequestSubmit={handleSubmit}
+      modalHeading="Add Content Entry" primaryButtonText="Add" secondaryButtonText="Cancel"
+      onSecondarySubmit={onClose} size="sm">
+      <TextInput id="cnt-creator"   labelText="Creator Name *"  value={form.creator_name} onChange={e => set('creator_name', e.target.value)} style={{ marginBottom: '1rem' }} />
+      <p style={{ fontSize: '0.75rem', color: 'var(--cds-text-secondary)', marginTop: '-0.75rem', marginBottom: '1rem' }}>
+        If this creator has a profile in the hub, the content will be linked to it automatically.
+      </p>
+      <Select id="cnt-platform" labelText="Platform" value={form.platform} onChange={e => set('platform', e.target.value)} style={{ marginBottom: '1rem' }}>
+        <SelectItem value="" text="— Auto-detect from URL —" />
+        {['LinkedIn','YouTube','X','Instagram','TikTok','Reddit','Other'].map(p => <SelectItem key={p} value={p} text={p} />)}
+      </Select>
+      <TextInput id="cnt-link"     labelText="Content Link"    value={form.permalink}    onChange={e => set('permalink', e.target.value)}    style={{ marginBottom: '1rem' }} />
+      <TextInput id="cnt-campaign" labelText="Campaign"        value={form.campaign}     onChange={e => set('campaign', e.target.value)}     style={{ marginBottom: '1rem' }} />
+      <TextInput id="cnt-title"    labelText="Title (optional)" value={form.title}       onChange={e => set('title', e.target.value)}        style={{ marginBottom: '1rem' }} />
+      <TextInput id="cnt-date"     labelText="Post Date (YYYY-MM-DD)" value={form.post_date} onChange={e => set('post_date', e.target.value)} />
+    </Modal>
+  );
+}
+
+function contentCsvRowToEntry(row) {
+  const n = k => k.trim().toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/, '');
+  const get = (...keys) => { for (const k of keys) { const v = row[n(k)] ?? row[k.trim().toLowerCase().replace(/\s+/g,'_')]; if (v != null && String(v).trim() !== '') return String(v).trim(); } return ''; };
+  return {
+    creator_name: get('creator_name', 'creator name', 'name'),
+    platform:     get('platform'),
+    permalink:    get('content_link', 'content link', 'link', 'url', 'permalink'),
+    campaign:     get('campaign'),
+    title:        get('title'),
+    post_date:    get('post_date', 'date'),
+  };
+}
+
+function ContentCsvUploadModal({ open, onClose, onImport }) {
+  const [file, setFile]       = useState(null);
+  const [preview, setPreview] = useState([]);
+  const [error, setError]     = useState('');
+  useEffect(() => { if (!open) { setFile(null); setPreview([]); setError(''); } }, [open]);
+
+  function handleFileChange(e) {
+    const f = e.target?.files?.[0] || (e.addedFiles && e.addedFiles[0]);
+    if (!f) return;
+    if (!f.name.endsWith('.csv')) { setError('Please upload a .csv file.'); return; }
+    setError('');
+    setFile(f);
+    const reader = new FileReader();
+    reader.onload = ev => {
+      const rows = parseCsv(ev.target.result);
+      if (rows.length === 0) { setError('No valid rows found in CSV.'); setPreview([]); return; }
+      setPreview(rows.slice(0, 5));
+    };
+    reader.readAsText(f);
+  }
+
+  function handleImport() {
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = ev => {
+      const rows = parseCsv(ev.target.result);
+      const entries = rows.map(contentCsvRowToEntry).filter(e => e.creator_name.trim());
+      onImport(entries);
+    };
+    reader.readAsText(file);
+  }
+
+  return (
+    <Modal open={open} onRequestClose={onClose} onRequestSubmit={handleImport}
+      modalHeading="Upload Content via CSV"
+      primaryButtonText="Import" primaryButtonDisabled={!file || preview.length === 0}
+      secondaryButtonText="Cancel" onSecondarySubmit={onClose} size="md">
+      <p style={{ marginBottom: '1rem', fontSize: '0.8125rem', fontFamily: 'monospace', background: '#f7f8fa', padding: '0.5rem', borderRadius: '4px', wordBreak: 'break-all' }}>
+        Creator Name, Platform, Content Link, Campaign, Title, Post Date
+      </p>
+      <p style={{ marginBottom: '1rem', fontSize: '0.8125rem', color: 'var(--cds-text-secondary)' }}>
+        Entries are matched by Content Link — existing links will be updated. Creator names matching an influencer profile will be linked automatically.
+      </p>
+      <FileUploader labelTitle="Select CSV file" labelDescription="Only .csv files are accepted"
+        buttonLabel="Add file" accept={['.csv']} filenameStatus="edit" onChange={handleFileChange} />
+      {error && <InlineNotification kind="error" title={error} style={{ marginTop: '1rem' }} hideCloseButton />}
+      {preview.length > 0 && (
+        <div style={{ marginTop: '1rem', overflowX: 'auto' }}>
+          <p style={{ fontSize: '0.875rem', marginBottom: '0.5rem' }}>Preview (first {preview.length} rows):</p>
+          <table style={{ borderCollapse: 'collapse', fontSize: '0.8125rem', width: '100%' }}>
+            <thead>
+              <tr style={{ background: '#f7f8fa', borderBottom: '1px solid #e5e7eb' }}>
+                {['Creator','Platform','Campaign','Link'].map(h => <th key={h} style={{ padding: '4px 8px', textAlign: 'left', fontWeight: 600 }}>{h}</th>)}
+              </tr>
+            </thead>
+            <tbody>
+              {preview.map((row, i) => {
+                const e = contentCsvRowToEntry(row);
+                return (
+                  <tr key={i} style={{ borderBottom: '1px solid #e5e7eb' }}>
+                    <td style={{ padding: '4px 8px' }}>{e.creator_name || '—'}</td>
+                    <td style={{ padding: '4px 8px' }}>{e.platform || '—'}</td>
+                    <td style={{ padding: '4px 8px' }}>{e.campaign || '—'}</td>
+                    <td style={{ padding: '4px 8px', maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{e.permalink || '—'}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+          <p style={{ marginTop: '0.5rem', fontSize: '0.8125rem', color: '#57606a' }}>Ready to import all rows.</p>
+        </div>
+      )}
+    </Modal>
+  );
+}
 
 function GlobalFeed({ onClose }) {
   const [feed, setFeed]         = useState([]);
@@ -1024,57 +1140,69 @@ function GlobalFeed({ onClose }) {
   const [product, setProduct]   = useState('');
   const [sortCol, setSortCol]   = useState('post_date');
   const [sortDir, setSortDir]   = useState('desc');
+  const [addModal, setAddModal] = useState(false);
+  const [csvModal, setCsvModal] = useState(false);
 
-  useEffect(() => {
+  function loadFeed() {
     const p = new URLSearchParams();
     if (platform) p.set('platform', platform);
     if (product)  p.set('ibm_product', product);
     fetch(`${API}/content/feed?${p}`).then(r => r.json()).then(setFeed);
-  }, [platform, product]);
+  }
 
-  const PROD_ITEMS = mkItems(['All Products','watsonx.ai','watsonx.governance','IBM Cloud','Red Hat OpenShift','Granite 4.0']);
+  useEffect(() => { loadFeed(); }, [platform, product]); // eslint-disable-line
+
+  async function handleAdd(formData) {
+    const r = await fetch(`${API}/content`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(formData),
+    });
+    if (r.ok) { const entry = await r.json(); setFeed(prev => [entry, ...prev]); }
+    setAddModal(false);
+  }
+
+  async function handleCsvImport(entries) {
+    for (const entry of entries) {
+      await fetch(`${API}/content/upsert`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(entry),
+      });
+    }
+    loadFeed();
+    setCsvModal(false);
+  }
 
   function handleSort(key) {
     if (!key) return;
-    if (sortCol === key) {
-      setSortDir(d => d === 'asc' ? 'desc' : 'asc');
-    } else {
-      setSortCol(key);
-      setSortDir('asc');
-    }
+    if (sortCol === key) { setSortDir(d => d === 'asc' ? 'desc' : 'asc'); }
+    else { setSortCol(key); setSortDir('asc'); }
   }
 
   const sorted = [...feed].sort((a, b) => {
     const av = a[sortCol] ?? '';
     const bv = b[sortCol] ?? '';
     const cmp = typeof av === 'number' && typeof bv === 'number'
-      ? av - bv
-      : String(av).localeCompare(String(bv));
+      ? av - bv : String(av).localeCompare(String(bv));
     return sortDir === 'asc' ? cmp : -cmp;
   });
 
   return (
     <div className="hub-right-panel hub-feed-view">
-      <div style={{ marginBottom: '1.25rem' }}>
-        <h2 className="hub-heading-lg">IBM Content Feed</h2>
-        <p className="hub-muted">Every IBM-sponsored post, across all creators — {feed.length} posts</p>
-      </div>
-
-      <div className="hub-feed-filters">
-        <Dropdown id="feed-platform" titleText="Platform" label="All Platforms"
-          items={PLATFORM_ITEMS} itemToString={i => i?.label || ''}
-          selectedItem={PLATFORM_ITEMS[0]}
-          onChange={({ selectedItem }) => setPlatform(selectedItem.id === 'All Platforms' ? '' : selectedItem.id)}
-          size="sm" style={{ minWidth: 180 }} />
-        <Dropdown id="feed-product" titleText="IBM Product" label="All Products"
-          items={PROD_ITEMS} itemToString={i => i?.label || ''}
-          selectedItem={PROD_ITEMS[0]}
-          onChange={({ selectedItem }) => setProduct(selectedItem.id === 'All Products' ? '' : selectedItem.id)}
-          size="sm" style={{ minWidth: 200 }} />
+      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: '1.25rem' }}>
+        <div>
+          <h2 className="hub-heading-lg">IBM Content Feed</h2>
+          <p className="hub-muted">Every IBM-sponsored post, across all creators — {feed.length} posts</p>
+        </div>
+        <div style={{ display: 'flex', gap: '0.5rem', flexShrink: 0 }}>
+          <Button kind="ghost" size="sm" onClick={() => setCsvModal(true)} className="hub-add-btn">↑ Upload CSV</Button>
+          <Button kind="primary" size="sm" onClick={() => setAddModal(true)} className="hub-add-btn">+ Add</Button>
+        </div>
       </div>
 
       {feed.length === 0
-        ? <Tile className="hub-empty-tile" style={{ textAlign: 'center' }}>No posts match these filters.</Tile>
+        ? <Tile className="hub-empty-tile" style={{ textAlign: 'center' }}>No posts yet. Add one or upload a CSV.</Tile>
         : (
           <div className="hub-table-scroll">
             <StructuredListWrapper>
@@ -1083,23 +1211,13 @@ function GlobalFeed({ onClose }) {
                   {FEED_COLS.map(col => {
                     const active = col.key && sortCol === col.key;
                     return (
-                      <StructuredListCell
-                        key={col.label}
-                        head
-                        className={col.key ? 'hub-th-sortable' : ''}
-                        onClick={() => handleSort(col.key)}
-                      >
+                      <StructuredListCell key={col.label} head
+                        className={col.key ? 'hub-th-sortable' : ''} onClick={() => handleSort(col.key)}>
                         <span className="hub-th-inner">
                           {col.label}
                           {col.key && (
-                            <svg
-                              className={`hub-sort-arrow${active ? ' hub-sort-arrow--active' : ''}${active && sortDir === 'desc' ? ' hub-sort-arrow--desc' : ''}`}
-                              xmlns="http://www.w3.org/2000/svg"
-                              viewBox="0 0 10 12"
-                              width="10" height="12"
-                              fill="none"
-                              aria-hidden="true"
-                            >
+                            <svg className={`hub-sort-arrow${active ? ' hub-sort-arrow--active' : ''}${active && sortDir === 'desc' ? ' hub-sort-arrow--desc' : ''}`}
+                              xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10 12" width="10" height="12" fill="none" aria-hidden="true">
                               <line x1="5" y1="1" x2="5" y2="11" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
                               <polyline points="1,7 5,11 9,7" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
                             </svg>
@@ -1114,19 +1232,16 @@ function GlobalFeed({ onClose }) {
                 {sorted.map(e => (
                   <StructuredListRow key={e.id}>
                     <StructuredListCell>
-                      <Tag type={e.influencer_type === 'internal' ? 'blue' : 'cool-gray'} size="sm">
-                        {e.influencer_name}
-                      </Tag>
+                      <span style={{ fontWeight: 500 }}>{e.influencer_name || '—'}</span>
                     </StructuredListCell>
                     <StructuredListCell><PlatformTag platform={e.platform} /></StructuredListCell>
-                    <StructuredListCell style={{ maxWidth: 260 }}>{e.title || e.content_type}</StructuredListCell>
-                    <StructuredListCell>{e.ibm_product_tag || '—'}</StructuredListCell>
-                    <StructuredListCell style={{ whiteSpace: 'nowrap' }}>{fmtDate(e.post_date)}</StructuredListCell>
-                    <StructuredListCell>{fmt(e.views)}</StructuredListCell>
-                    <StructuredListCell>{e.engagement_rate != null ? e.engagement_rate.toFixed(2) + '%' : '—'}</StructuredListCell>
-                    <StructuredListCell>
-                      <Link href={e.permalink} target="_blank" rel="noopener noreferrer" style={{ whiteSpace: 'nowrap' }}>View ↗</Link>
+                    <StructuredListCell style={{ maxWidth: 260 }}>
+                      {e.permalink
+                        ? <Link href={e.permalink} target="_blank" rel="noopener noreferrer">{e.title || e.permalink}</Link>
+                        : (e.title || '—')}
                     </StructuredListCell>
+                    <StructuredListCell>{e.campaign || '—'}</StructuredListCell>
+                    <StructuredListCell style={{ whiteSpace: 'nowrap' }}>{fmtDate(e.post_date)}</StructuredListCell>
                   </StructuredListRow>
                 ))}
               </StructuredListBody>
@@ -1134,6 +1249,9 @@ function GlobalFeed({ onClose }) {
           </div>
         )
       }
+
+      <ContentAddModal open={addModal} onClose={() => setAddModal(false)} onSave={handleAdd} />
+      <ContentCsvUploadModal open={csvModal} onClose={() => setCsvModal(false)} onImport={handleCsvImport} />
     </div>
   );
 }
