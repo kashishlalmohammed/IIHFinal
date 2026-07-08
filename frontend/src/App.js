@@ -28,6 +28,18 @@ const API = 'http://localhost:3001/api';
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
+// Parse human-friendly follower counts: "3.5k" → 3500, "1.2M" → 1200000, "500" → 500
+function parseFollowerCount(raw) {
+  if (raw == null) return 0;
+  const s = String(raw).trim().toLowerCase().replace(/,/g, '');
+  if (!s) return 0;
+  const match = s.match(/^([\d.]+)\s*([kmb]?)$/);
+  if (!match) return parseInt(s.replace(/[^0-9]/g, ''), 10) || 0;
+  const num = parseFloat(match[1]);
+  const mult = { k: 1_000, m: 1_000_000, b: 1_000_000_000 }[match[2]] || 1;
+  return Math.round(num * mult);
+}
+
 function fmt(n) {
   if (n == null) return '—';
   if (n >= 1_000_000) return (n / 1_000_000).toFixed(1) + 'M';
@@ -163,7 +175,7 @@ function InfluencerFormModal({ open, influencer, onClose, onSave, onDelete }) {
       .map(p => ({
         url: p.url.trim(),
         handle: p.handle.trim(),
-        follower_count: parseInt(String(p.follower_count).replace(/[^0-9]/g, ''), 10) || 0,
+        follower_count: parseFollowerCount(p.follower_count),
         platform: PLATFORM_FROM_URL(p.url.trim()) || 'Other',
       }));
     const campaign_types = form.campaigns
@@ -345,7 +357,7 @@ function csvRowToInfluencer(row) {
       const platform = PLATFORM_FROM_URL(url);
       const handle   = simpleHandleKey ? (row[simpleHandleKey] || '').trim() : '';
       const countRaw = simpleFollowersKey ? (row[simpleFollowersKey] || '0') : '0';
-      const follower_count = parseInt(String(countRaw).replace(/[^0-9]/g, ''), 10) || 0;
+      const follower_count = parseFollowerCount(countRaw);
       if (platform) platforms.push({ platform, url, handle, follower_count });
     }
   } else {
@@ -1302,7 +1314,7 @@ function SocialLeagueAddModal({ open, onClose, onSave }) {
   function set(k, v) { setForm(f => ({ ...f, [k]: v })); }
   function handleSubmit() {
     if (!form.name.trim()) return;
-    onSave({ ...form, followers: parseInt(form.followers, 10) || 0, talks_about_ai: form.talks_about_ai === '1' ? 1 : 0 });
+    onSave({ ...form, followers: parseFollowerCount(form.followers), talks_about_ai: form.talks_about_ai === '1' ? 1 : 0 });
   }
   return (
     <Modal open={open} onRequestClose={onClose} onRequestSubmit={handleSubmit}
@@ -1338,7 +1350,7 @@ function slCsvRowToMember(row) {
     email:           get('email'),
     member_identity: get('member_identity', 'member identity'),
     collaborate:     get('collaborate_with_sm_i', 'collaborate with sm+i', 'collaborate'),
-    followers:       parseInt(String(get('followers')).replace(/[^0-9]/g, ''), 10) || 0,
+    followers:       parseFollowerCount(get('followers')),
     location:        get('location'),
     business_unit:   get('business_unit___aligned', 'business_unit_aligned', 'business unit + aligned', 'business_unit'),
     w3:              get('w3'),
@@ -1446,7 +1458,7 @@ function SocialLeagueEditModal({ open, member, onClose, onSave }) {
   function set(k, v) { setForm(f => ({ ...f, [k]: v })); }
 
   function handleSubmit() {
-    onSave({ ...form, followers: parseInt(form.followers, 10) || 0, talks_about_ai: form.talks_about_ai === '1' ? 1 : 0 });
+    onSave({ ...form, followers: parseFollowerCount(form.followers), talks_about_ai: form.talks_about_ai === '1' ? 1 : 0 });
   }
 
   return (
