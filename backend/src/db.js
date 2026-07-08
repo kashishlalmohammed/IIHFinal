@@ -3,6 +3,92 @@ const path = require('path');
 
 const db = new DatabaseSync(path.join(__dirname, '../data/influencers.sqlite'));
 
+// ── Schema bootstrap — creates tables if they don't exist ────────────────────
+db.exec(`
+  CREATE TABLE IF NOT EXISTS influencers (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    type TEXT DEFAULT 'external',
+    persona_group TEXT,
+    location TEXT,
+    bio TEXT,
+    status TEXT DEFAULT 'active',
+    approval_status TEXT DEFAULT 'pending',
+    owner TEXT,
+    engagement_score REAL, reach_score REAL, quality_score REAL,
+    cost_score REAL, advocacy_score REAL, composite_score REAL,
+    rate TEXT
+  );
+
+  CREATE TABLE IF NOT EXISTS influencer_platforms (
+    id TEXT PRIMARY KEY,
+    influencer_id TEXT NOT NULL,
+    platform TEXT,
+    handle TEXT,
+    url TEXT,
+    follower_count INTEGER DEFAULT 0,
+    FOREIGN KEY (influencer_id) REFERENCES influencers(id)
+  );
+
+  CREATE TABLE IF NOT EXISTS influencer_content (
+    id TEXT PRIMARY KEY,
+    influencer_id TEXT NOT NULL,
+    platform TEXT,
+    title TEXT,
+    content_type TEXT,
+    ibm_product_tag TEXT,
+    post_date TEXT,
+    views INTEGER DEFAULT 0,
+    engagement_rate REAL,
+    permalink TEXT,
+    ibm_partner_confirmed INTEGER DEFAULT 0,
+    campaign TEXT,
+    FOREIGN KEY (influencer_id) REFERENCES influencers(id)
+  );
+
+  CREATE TABLE IF NOT EXISTS influencer_events (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    influencer_id TEXT NOT NULL,
+    event_name TEXT,
+    FOREIGN KEY (influencer_id) REFERENCES influencers(id)
+  );
+
+  CREATE TABLE IF NOT EXISTS influencer_campaign_types (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    influencer_id TEXT NOT NULL,
+    campaign_type TEXT,
+    FOREIGN KEY (influencer_id) REFERENCES influencers(id)
+  );
+
+  CREATE TABLE IF NOT EXISTS influencer_feedback (
+    id TEXT PRIMARY KEY,
+    influencer_id TEXT NOT NULL,
+    author TEXT,
+    team TEXT,
+    body TEXT,
+    created_at TEXT,
+    FOREIGN KEY (influencer_id) REFERENCES influencers(id)
+  );
+
+  CREATE TABLE IF NOT EXISTS social_league (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    title TEXT,
+    linkedin TEXT,
+    email TEXT,
+    member_identity TEXT,
+    collaborate TEXT,
+    followers INTEGER DEFAULT 0,
+    location TEXT,
+    business_unit TEXT,
+    w3 TEXT,
+    talks_about_ai INTEGER DEFAULT 0
+  );
+`);
+
+// Add campaign column to influencer_content if it was created without it
+try { db.exec('ALTER TABLE influencer_content ADD COLUMN campaign TEXT'); } catch (_) {}
+
 function toScore(row) {
   return {
     engagement_score: row.engagement_score,
