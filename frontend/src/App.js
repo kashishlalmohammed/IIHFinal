@@ -789,26 +789,15 @@ function ContentTab({ influencer }) {
             <StructuredListHead>
               <StructuredListRow head>
                 <StructuredListCell head>Platform</StructuredListCell>
-                <StructuredListCell head>Title / Type</StructuredListCell>
-                <StructuredListCell head>IBM Product</StructuredListCell>
-                <StructuredListCell head style={{ whiteSpace: 'nowrap' }}>Date</StructuredListCell>
-                <StructuredListCell head style={{ whiteSpace: 'nowrap' }}>Views</StructuredListCell>
-                <StructuredListCell head style={{ whiteSpace: 'nowrap' }}>Eng. Rate</StructuredListCell>
-                <StructuredListCell head style={{ whiteSpace: 'nowrap' }}>Link</StructuredListCell>
+                <StructuredListCell head>Campaign</StructuredListCell>
+                <StructuredListCell head>Link</StructuredListCell>
               </StructuredListRow>
             </StructuredListHead>
             <StructuredListBody>
               {content.map(c => (
                 <StructuredListRow key={c.id}>
                   <StructuredListCell><PlatformTag platform={c.platform} /></StructuredListCell>
-                  <StructuredListCell>
-                    <span style={{ fontSize: '0.875rem' }}>{c.title || c.content_type}</span>
-                    {c.ibm_partner_confirmed && <Tag type="blue" size="sm" style={{ marginLeft: '0.5rem' }}>#IBMPartner</Tag>}
-                  </StructuredListCell>
-                  <StructuredListCell>{c.ibm_product_tag || '—'}</StructuredListCell>
-                  <StructuredListCell style={{ whiteSpace: 'nowrap' }}>{fmtDate(c.post_date)}</StructuredListCell>
-                  <StructuredListCell style={{ whiteSpace: 'nowrap' }}>{fmt(c.views)}</StructuredListCell>
-                  <StructuredListCell style={{ whiteSpace: 'nowrap' }}>{c.engagement_rate != null ? c.engagement_rate.toFixed(2) + '%' : '—'}</StructuredListCell>
+                  <StructuredListCell>{c.campaign || '—'}</StructuredListCell>
                   <StructuredListCell>
                     <Link href={c.permalink} target="_blank" rel="noopener noreferrer" style={{ whiteSpace: 'nowrap' }}>View ↗</Link>
                   </StructuredListCell>
@@ -1015,9 +1004,8 @@ function ProfileView({ influencerId, localOverrides = {}, onEdit }) {
 const FEED_COLS = [
   { key: 'influencer_name', label: 'Creator' },
   { key: 'platform',        label: 'Platform' },
-  { key: 'title',           label: 'Title / Link' },
   { key: 'campaign',        label: 'Campaign' },
-  { key: 'post_date',       label: 'Date' },
+  { key: null,              label: 'Link' },
 ];
 
 const BLANK_CONTENT_FORM = { creator_name: '', platform: '', permalink: '', campaign: '' };
@@ -1238,13 +1226,12 @@ function GlobalFeed({ onClose }) {
                       <span style={{ fontWeight: 500 }}>{e.influencer_name || '—'}</span>
                     </StructuredListCell>
                     <StructuredListCell><PlatformTag platform={e.platform} /></StructuredListCell>
-                    <StructuredListCell style={{ maxWidth: 260 }}>
-                      {e.permalink
-                        ? <Link href={e.permalink} target="_blank" rel="noopener noreferrer">{e.title || e.permalink}</Link>
-                        : (e.title || '—')}
-                    </StructuredListCell>
                     <StructuredListCell>{e.campaign || '—'}</StructuredListCell>
-                    <StructuredListCell style={{ whiteSpace: 'nowrap' }}>{fmtDate(e.post_date)}</StructuredListCell>
+                    <StructuredListCell>
+                      {e.permalink
+                        ? <Link href={e.permalink} target="_blank" rel="noopener noreferrer" style={{ whiteSpace: 'nowrap' }}>View ↗</Link>
+                        : '—'}
+                    </StructuredListCell>
                   </StructuredListRow>
                 ))}
               </StructuredListBody>
