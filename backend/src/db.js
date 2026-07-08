@@ -495,11 +495,10 @@ function updateInfluencer(id, { name, type, persona_group, location, bio, status
 
 function createInfluencer({ name, type, persona_group, location, bio, status, approval_status, owner, platforms = [], campaign_types = [] }) {
   const id = `inf-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
-  const slug = `${String(name).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')}-${id}`;
   db.prepare(
-    `INSERT INTO influencers (id, name, slug, type, persona_group, location, bio, status, approval_status, owner)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
-  ).run(id, name, slug, type || 'external', persona_group || 'Developer / Engineer', location || '', bio || '', status || 'active', approval_status || 'pending', owner || '');
+    `INSERT INTO influencers (id, name, type, persona_group, location, bio, status, approval_status, owner)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
+  ).run(id, name, type || 'external', persona_group || 'Developer / Engineer', location || '', bio || '', status || 'active', approval_status || 'pending', owner || '');
 
   for (const p of platforms) {
     db.prepare(
