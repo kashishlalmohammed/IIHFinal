@@ -25,7 +25,7 @@ function listPlatforms(influencerId) {
 
 function listContent(influencerId) {
   return db.prepare(
-    `SELECT id, platform, title, content_type, ibm_product_tag, post_date, views, engagement_rate, permalink, ibm_partner_confirmed
+    `SELECT id, platform, title, content_type, ibm_product_tag, post_date, views, engagement_rate, permalink, ibm_partner_confirmed, campaign
      FROM influencer_content
      WHERE influencer_id = ?
      ORDER BY post_date DESC, id DESC`
