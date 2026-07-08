@@ -196,6 +196,7 @@ app.post('/api/content', (req, res) => {
   if (!creator_name || !String(creator_name).trim()) return res.status(400).json({ error: 'creator_name is required' });
   try {
     const entry = createContentEntry(req.body);
+    if (!entry) return res.status(200).json({ _skipped: true, reason: 'creator not found in hub' });
     res.status(201).json(entry);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -207,6 +208,7 @@ app.post('/api/content/upsert', (req, res) => {
   if (!creator_name || !String(creator_name).trim()) return res.status(400).json({ error: 'creator_name is required' });
   try {
     const entry = upsertContentEntry(req.body);
+    if (!entry) return res.status(200).json({ _skipped: true, reason: 'creator not found in hub' });
     res.status(200).json(entry);
   } catch (err) {
     res.status(500).json({ error: err.message });

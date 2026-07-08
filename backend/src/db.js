@@ -359,23 +359,13 @@ function getInfluencerContent(id) {
 }
 
 function createContentEntry({ creator_name, platform, permalink, campaign, title, content_type, post_date, views, engagement_rate, ibm_product_tag, ibm_partner_confirmed }) {
-  // Try to match creator to an existing influencer (case-insensitive)
+  // Only link to existing influencers — never create stubs
   const influencerRow = creator_name
     ? db.prepare('SELECT id FROM influencers WHERE LOWER(TRIM(name)) = LOWER(TRIM(?))').get(creator_name)
     : null;
 
-  let influencer_id = influencerRow?.id;
-
-  // If no match, create a minimal stub so the content has something to link to
-  if (!influencer_id && creator_name && creator_name.trim()) {
-    influencer_id = 'inf_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
-    db.prepare(
-      `INSERT INTO influencers (id, name, type, persona_group, location, bio, status, approval_status)
-       VALUES (?, ?, 'external', 'Other', '', '', 'active', 'pending')`
-    ).run(influencer_id, creator_name.trim());
-  }
-
-  if (!influencer_id) throw new Error('creator_name is required');
+  const influencer_id = influencerRow?.id;
+  if (!influencer_id) return null; // creator not in the hub — skip silently
 
   const id = 'cnt_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
   const platform_from_url = (url) => {
