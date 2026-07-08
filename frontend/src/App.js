@@ -1125,7 +1125,7 @@ function ContentCsvUploadModal({ open, onClose, onImport }) {
   );
 }
 
-function GlobalFeed({ onClose }) {
+function GlobalFeed({ onClose, onSelectInfluencer }) {
   const [feed, setFeed]         = useState([]);
   const [platform, setPlatform] = useState('');
   const [product, setProduct]   = useState('');
@@ -1223,7 +1223,13 @@ function GlobalFeed({ onClose }) {
                 {sorted.map(e => (
                   <StructuredListRow key={e.id}>
                     <StructuredListCell>
-                      <span style={{ fontWeight: 500 }}>{e.influencer_name || '—'}</span>
+                      {e.influencer_id && onSelectInfluencer
+                        ? <button
+                            onClick={() => onSelectInfluencer(e.influencer_id)}
+                            style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', fontWeight: 500, color: 'var(--cds-link-primary)', textDecoration: 'underline', textUnderlineOffset: '2px' }}
+                          >{e.influencer_name || '—'}</button>
+                        : <span style={{ fontWeight: 500 }}>{e.influencer_name || '—'}</span>
+                      }
                     </StructuredListCell>
                     <StructuredListCell><PlatformTag platform={e.platform} /></StructuredListCell>
                     <StructuredListCell>{e.campaign || '—'}</StructuredListCell>
@@ -1852,7 +1858,7 @@ export default function App() {
             onUploadCsv={handleOpenCsv}
           />
           {showFeed
-            ? <GlobalFeed onClose={() => setShowFeed(false)} />
+            ? <GlobalFeed onClose={() => setShowFeed(false)} onSelectInfluencer={(id) => { setSelected(id); setShowFeed(false); setShowSocialLeague(false); }} />
             : <ProfileView influencerId={selectedId} localOverrides={localOverrides} onEdit={handleOpenEdit} />
           }
         </div>}
