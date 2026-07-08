@@ -1,0 +1,41 @@
+# Bob internal workspace
+.bob/
+
+# Excel source data files
+*.xlsx
+*.csv
+
+# SQLite databases
+*.sqlite
+*.db
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+
+# Node
+node_modules/
+npm-debug.log*
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Environment
+.env
+.env.*
+
+# Misc data/audit files
+master_rows_audit.json
+geo_source_lookup.json
+
+# Keep package manifests
+!package.json
+!package-lock.json
+
+# Docs folder (PDFs, Word docs, etc.)
+docs/
+
+# SQLite data (already covered above, explicit path too)
+backend/data/
