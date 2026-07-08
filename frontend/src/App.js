@@ -312,15 +312,20 @@ function parseCsv(text) {
   if (cols.some(c => c !== '')) rows.push(cols);
 
   if (rows.length < 2) return [];
-  // Skip any leading title rows — find the first row that contains a "name" column
-  const headerIdx = rows.findIndex(r => r.some(c => c.trim().toLowerCase() === 'name'));
+  // Skip any leading title rows — find the first row that looks like a header
+  // (contains a cell that is or ends with "name", or contains "creator name")
+  const isHeaderRow = r => r.some(c => {
+    const v = c.trim().toLowerCase();
+    return v === 'name' || v === 'creator name' || v.endsWith(' name') || v === 'creator_name';
+  });
+  const headerIdx = rows.findIndex(isHeaderRow);
   if (headerIdx === -1 || headerIdx >= rows.length - 1) return [];
   const headers = rows[headerIdx].map(h => h.toLowerCase().replace(/\s+/g, '_'));
   return rows.slice(headerIdx + 1).map(cols => {
     const row = {};
     headers.forEach((h, i) => { row[h] = cols[i] || ''; });
     return row;
-  }).filter(r => r.name && r.name.trim());
+  }).filter(r => (r.name && r.name.trim()) || (r.creator_name && r.creator_name.trim()));
 }
 
 // Normalise a CSV header key: lowercase, collapse spaces/special chars to underscores
@@ -1015,7 +1020,7 @@ const FEED_COLS = [
   { key: 'post_date',       label: 'Date' },
 ];
 
-const BLANK_CONTENT_FORM = { creator_name: '', platform: '', permalink: '', campaign: '', title: '', post_date: '' };
+const BLANK_CONTENT_FORM = { creator_name: '', platform: '', permalink: '', campaign: '' };
 
 function ContentAddModal({ open, onClose, onSave }) {
   const [form, setForm] = useState({ ...BLANK_CONTENT_FORM });
@@ -1039,8 +1044,6 @@ function ContentAddModal({ open, onClose, onSave }) {
       </Select>
       <TextInput id="cnt-link"     labelText="Content Link"    value={form.permalink}    onChange={e => set('permalink', e.target.value)}    style={{ marginBottom: '1rem' }} />
       <TextInput id="cnt-campaign" labelText="Campaign"        value={form.campaign}     onChange={e => set('campaign', e.target.value)}     style={{ marginBottom: '1rem' }} />
-      <TextInput id="cnt-title"    labelText="Title (optional)" value={form.title}       onChange={e => set('title', e.target.value)}        style={{ marginBottom: '1rem' }} />
-      <TextInput id="cnt-date"     labelText="Post Date (YYYY-MM-DD)" value={form.post_date} onChange={e => set('post_date', e.target.value)} />
     </Modal>
   );
 }
@@ -1096,7 +1099,7 @@ function ContentCsvUploadModal({ open, onClose, onImport }) {
       primaryButtonText="Import" primaryButtonDisabled={!file || preview.length === 0}
       secondaryButtonText="Cancel" onSecondarySubmit={onClose} size="md">
       <p style={{ marginBottom: '1rem', fontSize: '0.8125rem', fontFamily: 'monospace', background: '#f7f8fa', padding: '0.5rem', borderRadius: '4px', wordBreak: 'break-all' }}>
-        Creator Name, Platform, Content Link, Campaign, Title, Post Date
+        Creator Name, Platform, Content Link, Campaign
       </p>
       <p style={{ marginBottom: '1rem', fontSize: '0.8125rem', color: 'var(--cds-text-secondary)' }}>
         Entries are matched by Content Link — existing links will be updated. Creator names matching an influencer profile will be linked automatically.
