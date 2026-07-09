@@ -297,12 +297,15 @@ const PLATFORM_FROM_URL = (url) => {
 };
 
 function parseCsv(text) {
-  // RFC 4180-compliant parser: handles quoted fields that span multiple lines
+  // Handles both CSV (comma-separated) and TSV (tab-separated, common Excel export)
   const normalized = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
   if (!normalized.trim()) return [];
 
-  // Tokenise the entire file character-by-character so newlines inside
-  // quoted fields don't split rows prematurely.
+  // Auto-detect delimiter: if the first non-empty line has more tabs than commas, use tab
+  const firstLine = normalized.split('\n').find(l => l.trim()) || '';
+  const delimiter = (firstLine.split('\t').length > firstLine.split(',').length) ? '\t' : ',';
+
+  // Tokenise character-by-character so quoted fields with newlines are handled correctly
   const rows = [];
   let cols = [];
   let cur = '';
@@ -311,7 +314,6 @@ function parseCsv(text) {
     const ch = normalized[i];
     if (inQuote) {
       if (ch === '"') {
-        // Peek: escaped quote ("") stays in value; closing quote ends field
         if (normalized[i + 1] === '"') { cur += '"'; i++; }
         else { inQuote = false; }
       } else {
@@ -320,7 +322,7 @@ function parseCsv(text) {
     } else {
       if (ch === '"') {
         inQuote = true;
-      } else if (ch === ',') {
+      } else if (ch === delimiter) {
         cols.push(cur.trim());
         cur = '';
       } else if (ch === '\n') {
