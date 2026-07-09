@@ -651,7 +651,7 @@ function InfluencerCard({ influencer, selected, onClick, onEdit }) {
 
 // ── Left Panel ────────────────────────────────────────────────────────────────
 
-const EVENT_OPTIONS = [
+const BASE_CAMPAIGN_OPTIONS = [
   { value: '', text: 'All Campaigns' },
   ...['AI Summit Korea','AWS re:Invent','Dreamforce','Ferrari / F1','Gartner Data & Analytics',
      'GRAMMYs','IBM Accelerate','IBM Think','IBM TechXchange','KubeCon','Masters',
@@ -672,7 +672,7 @@ function FilterSelect({ label, value, options, onChange }) {
   );
 }
 
-function LeftPanel({ influencers, selectedId, onSelect, onSearch, onFilter, filters, searchQuery, onViewFeed, onAdd, onEdit, onUploadCsv }) {
+function LeftPanel({ influencers, selectedId, onSelect, onSearch, onFilter, filters, searchQuery, onViewFeed, onAdd, onEdit, onUploadCsv, campaignOptions }) {
   return (
     <div className="hub-left-panel">
       <div className="hub-filters">
@@ -695,7 +695,7 @@ function LeftPanel({ influencers, selectedId, onSelect, onSearch, onFilter, filt
             { value:'', text:'All Personas' },
             ...['Developer','AI Decision Makers','Data Leaders','Secure','Infrastructure','Industry','Sports, Entertainment, and Partnerships','CxO programs','Digital Sovereignty'].map(p => ({ value:p, text:p })),
           ]} onChange={v => onFilter('persona_group', v)} />
-          <FilterSelect label="Campaigns" value={filters.events} options={EVENT_OPTIONS}
+          <FilterSelect label="Campaigns" value={filters.events} options={campaignOptions || BASE_CAMPAIGN_OPTIONS}
             onChange={v => onFilter('events', v)} />
           <FilterSelect label="Geo" value={filters.location} options={[
             { value: '', text: 'All Geos' },
@@ -2077,6 +2077,7 @@ export default function App() {
   const [sideNavExpanded, setSideNavExpanded] = useState(false);
   const [formModal, setFormModal] = useState({ open: false, influencer: null });
   const [csvModal, setCsvModal] = useState(false);
+  const [campaignOptions, setCampaignOptions] = useState(BASE_CAMPAIGN_OPTIONS);
   const nlTimer = useRef(null);
 
   useEffect(() => {
@@ -2128,7 +2129,7 @@ export default function App() {
   const handleOpenCsv   = useCallback(() => setCsvModal(true), []);
   const handleCloseCsv  = useCallback(() => setCsvModal(false), []);
 
-  const handleCsvImport = useCallback(async (newInfluencers) => {
+  const handleCsvImport = useCallback(async (newInfluencers, campaignName) => {
     const results = [];
     for (const inf of newInfluencers) {
       const r = await fetch(`${API}/influencers/upsert`, {
@@ -2147,6 +2148,13 @@ export default function App() {
       const merged = prev.map(i => updatedIds.has(i.id) ? updatedMap[i.id] : i);
       return [...created, ...merged];
     });
+    // Add the campaign name to the filter dropdown if it's new
+    if (campaignName) {
+      setCampaignOptions(prev => {
+        if (prev.some(o => o.value === campaignName)) return prev;
+        return [...prev, { value: campaignName, text: campaignName }];
+      });
+    }
     setCsvModal(false);
   }, []);
 
@@ -2217,6 +2225,7 @@ export default function App() {
             onAdd={handleOpenAdd}
             onEdit={handleOpenEdit}
             onUploadCsv={handleOpenCsv}
+            campaignOptions={campaignOptions}
           />
           {showFeed
             ? <GlobalFeed onClose={() => setShowFeed(false)} onSelectInfluencer={(id) => { setSelected(id); setShowFeed(false); setShowSocialLeague(false); }} />

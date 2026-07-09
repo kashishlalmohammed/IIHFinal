@@ -1,7 +1,10 @@
 const { DatabaseSync } = require('node:sqlite');
 const path = require('path');
 
-const db = new DatabaseSync(path.join(__dirname, '../data/influencers.sqlite'));
+// DATA_DIR can be overridden by env var so a mounted volume works on IBM Cloud.
+// Locally defaults to backend/data/ (same as before).
+const dataDir = process.env.DATA_DIR || path.join(__dirname, '../data');
+const db = new DatabaseSync(path.join(dataDir, 'influencers.sqlite'));
 
 // ── Schema bootstrap — creates tables if they don't exist ────────────────────
 db.exec(`
@@ -32,7 +35,7 @@ db.exec(`
 
   CREATE TABLE IF NOT EXISTS influencer_content (
     id TEXT PRIMARY KEY,
-    influencer_id TEXT NOT NULL,
+    influencer_id TEXT,
     platform TEXT,
     title TEXT,
     content_type TEXT,
@@ -43,6 +46,7 @@ db.exec(`
     permalink TEXT,
     ibm_partner_confirmed INTEGER DEFAULT 0,
     campaign TEXT,
+    creator_name TEXT,
     FOREIGN KEY (influencer_id) REFERENCES influencers(id)
   );
 
@@ -86,8 +90,41 @@ db.exec(`
   );
 `);
 
-// Add campaign column to influencer_content if it was created without it
+// Migrations — safe to re-run, errors ignored if column already exists
 try { db.exec('ALTER TABLE influencer_content ADD COLUMN campaign TEXT'); } catch (_) {}
+try { db.exec('ALTER TABLE influencer_content ADD COLUMN creator_name TEXT'); } catch (_) {}
+
+// Drop the NOT NULL constraint on influencer_id so unlinked entries can be saved.
+// SQLite doesn't support ALTER COLUMN — use the rename+recreate pattern.
+{
+  const cols = db.prepare("PRAGMA table_info(influencer_content)").all();
+  const influencerIdCol = cols.find(c => c.name === 'influencer_id');
+  if (influencerIdCol && influencerIdCol.notnull === 1) {
+    db.exec(`
+      BEGIN;
+      ALTER TABLE influencer_content RENAME TO _influencer_content_old;
+      CREATE TABLE influencer_content (
+        id TEXT PRIMARY KEY,
+        influencer_id TEXT,
+        platform TEXT,
+        title TEXT,
+        content_type TEXT,
+        ibm_product_tag TEXT,
+        post_date TEXT,
+        views INTEGER DEFAULT 0,
+        engagement_rate REAL,
+        permalink TEXT,
+        ibm_partner_confirmed INTEGER DEFAULT 0,
+        campaign TEXT,
+        creator_name TEXT,
+        FOREIGN KEY (influencer_id) REFERENCES influencers(id)
+      );
+      INSERT INTO influencer_content SELECT id, influencer_id, platform, title, content_type, ibm_product_tag, post_date, views, engagement_rate, permalink, ibm_partner_confirmed, campaign, creator_name FROM _influencer_content_old;
+      DROP TABLE _influencer_content_old;
+      COMMIT;
+    `);
+  }
+}
 
 function toScore(row) {
   return {
@@ -354,18 +391,193 @@ function getInfluencerScore(id) {
   return row ? toScore(row) : null;
 }
 
+// ── Post-date extraction from URL (no API calls needed) ──────────────────────
+// Each major platform encodes a timestamp directly into its post/video/activity ID.
+// We decode these purely from the URL — zero network requests, zero API keys.
+
+function extractPostDateFromUrl(permalink) {
+  if (!permalink) return null;
+  const url = permalink.trim();
+
+  const BASE64URL = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_';
+  const IG_EPOCH = 1293840000000n;
+  let m;
+
+  // ── X / Twitter ──────────────────────────────────────────────────────────────
+  // status IDs and article IDs are both Snowflakes
+  const TWITTER_EPOCH = 1288834974657n;
+  m = url.match(/(?:twitter\.com|x\.com)\/[^/]+\/(?:status(?:es)?|article)\/(\d{15,})/i);
+  if (m) {
+    const ts = (BigInt(m[1]) >> 22n) + TWITTER_EPOCH;
+    const d = new Date(Number(ts));
+    if (d.getFullYear() >= 2006 && d.getFullYear() <= 2030) return d.toISOString().split('T')[0];
+  }
+
+  // ── LinkedIn ─────────────────────────────────────────────────────────────────
+  // activity, ugcPost, share IDs in URN form:  urn:li:activity:ID  or urn:li:ugcPost:ID
+  // ugcPost/share in slug form:                -ugcPost-ID-  or -sharePost-ID-
+  // events:                                    /events/slug-ID/
+  // All are Snowflakes: shift 22, Unix epoch
+  m = url.match(/(?:activity|ugcPost|sharePost|share)[:/](\d{15,})/);
+  if (!m) m = url.match(/-(?:activity|ugcPost|sharePost)-(\d{15,})-?/);
+  if (!m) m = url.match(/\/events\/[^/]+-(\d{15,})\//);
+  if (m) {
+    const ts = BigInt(m[1]) >> 22n;
+    const d = new Date(Number(ts));
+    if (d.getFullYear() >= 2015 && d.getFullYear() <= 2030) return d.toISOString().split('T')[0];
+  }
+
+  // ── Instagram ────────────────────────────────────────────────────────────────
+  // Shortcode posts/reels (base64url → Snowflake, bits 63-23 + IG epoch)
+  // Handles both /p/CODE/ and /username/reel/CODE/ URL shapes
+  m = url.match(/instagram\.com(?:\/[^/]+)?\/(?:p|reel|tv)\/([A-Za-z0-9_-]{6,})/);
+  if (m) {
+    let n = 0n;
+    for (const c of m[1]) { const idx = BASE64URL.indexOf(c); if (idx < 0) break; n = n * 64n + BigInt(idx); }
+    const ts = (n >> 23n) + IG_EPOCH;
+    const d = new Date(Number(ts));
+    if (d.getFullYear() >= 2010 && d.getFullYear() <= 2030) return d.toISOString().split('T')[0];
+  }
+
+  // Instagram Stories — numeric media ID is also a Snowflake (bits 63-23 + IG epoch)
+  m = url.match(/instagram\.com\/stories\/[^/]+\/(\d{15,})/);
+  if (m) {
+    const ts = (BigInt(m[1]) >> 23n) + IG_EPOCH;
+    const d = new Date(Number(ts));
+    if (d.getFullYear() >= 2016 && d.getFullYear() <= 2030) return d.toISOString().split('T')[0];
+  }
+
+  // ── TikTok ───────────────────────────────────────────────────────────────────
+  // https://www.tiktok.com/@user/video/7563512939550969119
+  // Snowflake: bits 63-32 = Unix seconds
+  m = url.match(/tiktok\.com\/@[^/]+\/video\/(\d{15,})/);
+  if (m) {
+    const secs = BigInt(m[1]) >> 32n;
+    const d = new Date(Number(secs) * 1000);
+    if (d.getFullYear() >= 2017 && d.getFullYear() <= 2030) return d.toISOString().split('T')[0];
+  }
+
+  // ── Threads ──────────────────────────────────────────────────────────────────
+  // https://www.threads.com/@user/post/DOoJTxEicfA  (same base64url + IG epoch)
+  m = url.match(/threads\.(?:com|net)\/@[^/]+\/post\/([A-Za-z0-9_-]{6,})/);
+  if (m) {
+    let n = 0n;
+    for (const c of m[1]) { const idx = BASE64URL.indexOf(c); if (idx < 0) break; n = n * 64n + BigInt(idx); }
+    const ts = (n >> 23n) + IG_EPOCH;
+    const d = new Date(Number(ts));
+    if (d.getFullYear() >= 2023 && d.getFullYear() <= 2030) return d.toISOString().split('T')[0];
+  }
+
+  // ── Pinterest ─────────────────────────────────────────────────────────────────
+  // Pin IDs are Snowflakes: bits 63-22 + Pinterest epoch (2011-06-20 = 1308528000000)
+  const PIN_EPOCH = 1308528000000n;
+  m = url.match(/pinterest\.[a-z.]+\/pin\/(\d{12,})/);
+  if (m) {
+    const ts = (BigInt(m[1]) >> 22n) + PIN_EPOCH;
+    const d = new Date(Number(ts));
+    if (d.getFullYear() >= 2011 && d.getFullYear() <= 2030) return d.toISOString().split('T')[0];
+  }
+
+  // ── Reddit ────────────────────────────────────────────────────────────────────
+  // base36 post ID + Reddit epoch (~2005-12-08)
+  m = url.match(/reddit\.com\/(?:r\/[^/]+\/comments|user\/[^/]+\/comments)\/([a-z0-9]{5,8})\//i);
+  if (m) {
+    const n = parseInt(m[1], 36);
+    const ts = n + 1134028800;
+    const d = new Date(ts * 1000);
+    if (d.getFullYear() >= 2020 && d.getFullYear() <= 2030) return d.toISOString().split('T')[0];
+  }
+
+  // ── Date in URL path ─────────────────────────────────────────────────────────
+  // Covers SiliconAngle, Forbes, eWeek, many blog/news sites
+  m = url.match(/\/(20\d{2})\/(0[1-9]|1[0-2])\/(0[1-9]|[12]\d|3[01])\//);
+  if (m) return `${m[1]}-${m[2]}-${m[3]}`;
+
+  return null;
+}
+
+// ── Async fetch helpers (Substack/Ghost public API) ──────────────────────────
+
+// Extract a date from a Substack-compatible post API.
+// Works for *.substack.com and any Ghost-powered newsletter on a custom domain
+// that exposes the same API (newsletter.genai.works, read.youreverydayai.com, etc.)
+async function fetchSubstackDate(permalink) {
+  try {
+    const u = new URL(permalink);
+    // Must be a /p/<slug> path
+    const slugMatch = u.pathname.match(/^\/p\/([^/?#]+)/);
+    if (!slugMatch) return null;
+    const slug = slugMatch[1];
+    const apiUrl = `${u.protocol}//${u.host}/api/v1/posts?slug=${encodeURIComponent(slug)}`;
+    const res = await fetch(apiUrl, { signal: AbortSignal.timeout(8000) });
+    if (!res.ok) return null;
+    const data = await res.json();
+    const posts = Array.isArray(data) ? data : [data];
+    const post = posts.find(p => p.slug === slug) || posts[0];
+    if (post?.post_date) return post.post_date.split('T')[0];
+  } catch (_) {}
+  return null;
+}
+
+// Backfill post_date for all rows where it is NULL but permalink exists
+async function backfillPostDates() {
+  const rows = db.prepare(
+    `SELECT id, permalink FROM influencer_content WHERE post_date IS NULL AND permalink IS NOT NULL`
+  ).all();
+
+  const update = db.prepare(`UPDATE influencer_content SET post_date = ? WHERE id = ?`);
+  let syncFilled = 0;
+  let asyncFilled = 0;
+
+  // Phase 1: sync URL-only decoding (instant, no network)
+  const needsAsync = [];
+  db.exec('BEGIN');
+  try {
+    for (const row of rows) {
+      const date = extractPostDateFromUrl(row.permalink);
+      if (date) { update.run(date, row.id); syncFilled++; }
+      else { needsAsync.push(row); }
+    }
+    db.exec('COMMIT');
+  } catch (e) { db.exec('ROLLBACK'); throw e; }
+
+  // Phase 2: async Substack/Ghost API fetch for /p/<slug> URLs
+  const substackRows = needsAsync.filter(r => {
+    try { const p = new URL(r.permalink).pathname; return /^\/p\/[^/?#]+/.test(p); }
+    catch (_) { return false; }
+  });
+
+  // Batch with concurrency limit to be polite
+  const CONCURRENCY = 5;
+  for (let i = 0; i < substackRows.length; i += CONCURRENCY) {
+    const batch = substackRows.slice(i, i + CONCURRENCY);
+    const results = await Promise.all(batch.map(async row => {
+      const date = await fetchSubstackDate(row.permalink);
+      return { row, date };
+    }));
+    db.exec('BEGIN');
+    try {
+      for (const { row, date } of results) {
+        if (date) { update.run(date, row.id); asyncFilled++; }
+      }
+      db.exec('COMMIT');
+    } catch (e) { db.exec('ROLLBACK'); throw e; }
+  }
+
+  return { total: rows.length, syncFilled, asyncFilled, filled: syncFilled + asyncFilled };
+}
+
 function getInfluencerContent(id) {
   return listContent(id);
 }
 
 function createContentEntry({ creator_name, platform, permalink, campaign, title, content_type, post_date, views, engagement_rate, ibm_product_tag, ibm_partner_confirmed }) {
-  // Only link to existing influencers — never create stubs
+  // Link to existing influencer if name matches, otherwise save unlinked
   const influencerRow = creator_name
     ? db.prepare('SELECT id FROM influencers WHERE LOWER(TRIM(name)) = LOWER(TRIM(?))').get(creator_name)
     : null;
 
-  const influencer_id = influencerRow?.id;
-  if (!influencer_id) return null; // creator not in the hub — skip silently
+  const influencer_id = influencerRow?.id ?? null;
 
   const id = 'cnt_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
   const platform_from_url = (url) => {
@@ -382,20 +594,20 @@ function createContentEntry({ creator_name, platform, permalink, campaign, title
   const resolvedPlatform = platform || platform_from_url(permalink);
 
   db.prepare(
-    `INSERT INTO influencer_content (id, influencer_id, platform, title, content_type, ibm_product_tag, post_date, views, engagement_rate, permalink, ibm_partner_confirmed, campaign)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+    `INSERT INTO influencer_content (id, influencer_id, creator_name, platform, title, content_type, ibm_product_tag, post_date, views, engagement_rate, permalink, ibm_partner_confirmed, campaign)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
   ).run(
-    id, influencer_id, resolvedPlatform,
+    id, influencer_id, creator_name || null, resolvedPlatform,
     title || null, content_type || null, ibm_product_tag || null,
-    post_date || null, views ? parseInt(views, 10) || 0 : 0,
+    post_date || extractPostDateFromUrl(permalink) || null, views ? parseInt(views, 10) || 0 : 0,
     engagement_rate ? parseFloat(engagement_rate) || null : null,
     permalink || null, ibm_partner_confirmed ? 1 : 0,
     campaign || null
   );
 
   return db.prepare(
-    `SELECT c.*, i.name AS influencer_name, i.type AS influencer_type
-     FROM influencer_content c JOIN influencers i ON i.id = c.influencer_id
+    `SELECT c.*, COALESCE(i.name, c.creator_name) AS influencer_name, i.type AS influencer_type
+     FROM influencer_content c LEFT JOIN influencers i ON i.id = c.influencer_id
      WHERE c.id = ?`
   ).get(id);
 }
@@ -409,12 +621,32 @@ function upsertContentEntry(data) {
         `UPDATE influencer_content SET campaign = COALESCE(NULLIF(?, ''), campaign), title = COALESCE(NULLIF(?, ''), title) WHERE id = ?`
       ).run(data.campaign || '', data.title || '', existing.id);
       return db.prepare(
-        `SELECT c.*, i.name AS influencer_name, i.type AS influencer_type
-         FROM influencer_content c JOIN influencers i ON i.id = c.influencer_id WHERE c.id = ?`
+        `SELECT c.*, COALESCE(i.name, c.creator_name) AS influencer_name, i.type AS influencer_type
+         FROM influencer_content c LEFT JOIN influencers i ON i.id = c.influencer_id WHERE c.id = ?`
       ).get(existing.id);
     }
   }
   return createContentEntry(data);
+}
+
+function updateContentEntry(id, { creator_name, platform, permalink, campaign, post_date }) {
+  db.prepare(
+    `UPDATE influencer_content SET
+       creator_name = ?,
+       platform     = ?,
+       permalink    = ?,
+       campaign     = ?,
+       post_date    = ?
+     WHERE id = ?`
+  ).run(creator_name || null, platform || null, permalink || null, campaign || null, post_date || null, id);
+  return db.prepare(
+    `SELECT c.*, COALESCE(i.name, c.creator_name) AS influencer_name, i.type AS influencer_type
+     FROM influencer_content c LEFT JOIN influencers i ON i.id = c.influencer_id WHERE c.id = ?`
+  ).get(id);
+}
+
+function deleteContentEntry(id) {
+  db.prepare('DELETE FROM influencer_content WHERE id = ?').run(id);
 }
 
 function getContentFeed(filters = {}) {
@@ -446,22 +678,22 @@ function findInfluencerByName(name) {
 }
 
 function updateInfluencer(id, { name, type, persona_group, location, bio, status, approval_status, owner, platforms, campaign_types }) {
-  // Update scalar fields (only overwrite non-empty values from CSV)
+  // Direct update — caller sends the full intended values (edit modal)
   db.prepare(
     `UPDATE influencers SET
-       name             = COALESCE(NULLIF(?, ''), name),
-       type             = COALESCE(NULLIF(?, ''), type),
-       persona_group    = COALESCE(NULLIF(?, ''), persona_group),
-       location         = COALESCE(NULLIF(?, ''), location),
-       bio              = COALESCE(NULLIF(?, ''), bio),
-       status           = COALESCE(NULLIF(?, ''), status),
-       approval_status  = COALESCE(NULLIF(?, ''), approval_status),
-       owner            = COALESCE(NULLIF(?, ''), owner)
+       name             = ?,
+       type             = ?,
+       persona_group    = ?,
+       location         = ?,
+       bio              = ?,
+       status           = ?,
+       approval_status  = ?,
+       owner            = ?
      WHERE id = ?`
-  ).run(name || '', type || '', persona_group || '', location || '', bio || '', status || '', approval_status || '', owner || '', id);
+  ).run(name || null, type || null, persona_group || null, location || null, bio || null, status || null, approval_status || null, owner || null, id);
 
-  // Replace platforms if any were provided in the CSV
-  if (Array.isArray(platforms) && platforms.length > 0) {
+  // Always replace platforms and campaign_types when the edit modal sends them
+  if (Array.isArray(platforms)) {
     db.prepare('DELETE FROM influencer_platforms WHERE influencer_id = ?').run(id);
     for (const p of platforms) {
       db.prepare(
@@ -470,8 +702,7 @@ function updateInfluencer(id, { name, type, persona_group, location, bio, status
     }
   }
 
-  // Replace campaign types if any were provided
-  if (Array.isArray(campaign_types) && campaign_types.length > 0) {
+  if (Array.isArray(campaign_types)) {
     db.prepare('DELETE FROM influencer_campaign_types WHERE influencer_id = ?').run(id);
     for (const ct of campaign_types) {
       db.prepare(
@@ -485,10 +716,11 @@ function updateInfluencer(id, { name, type, persona_group, location, bio, status
 
 function createInfluencer({ name, type, persona_group, location, bio, status, approval_status, owner, platforms = [], campaign_types = [] }) {
   const id = `inf-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+  const slug = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') + '-' + id.slice(-5);
   db.prepare(
-    `INSERT INTO influencers (id, name, type, persona_group, location, bio, status, approval_status, owner)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
-  ).run(id, name, type || 'external', persona_group || 'Developer / Engineer', location || '', bio || '', status || 'active', approval_status || 'pending', owner || '');
+    `INSERT INTO influencers (id, name, slug, type, persona_group, location, bio, status, approval_status, owner)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+  ).run(id, name, slug, type || 'external', persona_group || 'Developer / Engineer', location || '', bio || '', status || 'active', approval_status || 'pending', owner || '');
 
   for (const p of platforms) {
     db.prepare(
@@ -576,17 +808,233 @@ function upsertSocialLeagueMember(data) {
 function updateSocialLeagueMember(id, { name, title, linkedin, email, member_identity, collaborate, followers, location, business_unit, w3, talks_about_ai }) {
   db.prepare(`
     UPDATE social_league
-    SET name = ?, title = ?, linkedin = ?, email = ?, member_identity = ?,
-        collaborate = ?, followers = ?, location = ?, business_unit = ?, w3 = ?, talks_about_ai = ?
+    SET name            = ?,
+        title           = ?,
+        linkedin        = ?,
+        email           = ?,
+        member_identity = ?,
+        collaborate     = ?,
+        followers       = ?,
+        location        = ?,
+        business_unit   = ?,
+        w3              = ?,
+        talks_about_ai  = ?
     WHERE id = ?
   `).run(
-    name ?? null, title ?? null, linkedin ?? null, email ?? null, member_identity ?? null,
-    collaborate ?? null, followers != null ? parseInt(followers, 10) || 0 : null,
-    location ?? null, business_unit ?? null, w3 ?? null,
-    talks_about_ai != null ? (talks_about_ai ? 1 : 0) : 0,
+    name            || null,
+    title           || null,
+    linkedin        || null,
+    email           || null,
+    member_identity || null,
+    collaborate     || null,
+    followers != null ? parseInt(followers, 10) || 0 : 0,
+    location      || null,
+    business_unit || null,
+    w3            || null,
+    talks_about_ai ? 1 : 0,
     id
   );
   return db.prepare('SELECT * FROM social_league WHERE id = ?').get(id);
+}
+
+// ── Chat NLP query ────────────────────────────────────────────────────────────
+
+// Known values for fuzzy matching
+const KNOWN_EVENTS = [
+  'AI Summit Korea', 'AWS re:Invent', 'Dreamforce', 'Ferrari / F1',
+  'Gartner Data & Analytics', 'GRAMMYs', 'IBM Accelerate', 'IBM Think',
+  'IBM TechXchange', 'KubeCon', 'Masters', 'Mobile World Congress',
+  'NFL', 'NRF', 'NY Tech Week', 'SIBOS', 'SXSW', 'US Open', 'VivaTech', 'Wimbledon',
+];
+
+const KNOWN_CAMPAIGNS = [
+  'AI for Business', 'Automation / webMethods', 'Cross-Geo',
+  'Granite / Developer', 'Hybrid Cloud', 'Security',
+  'Sports Survey 2025', 'UK Narrative',
+];
+
+const KNOWN_PLATFORMS = ['YouTube', 'LinkedIn', 'Instagram', 'TikTok', 'X', 'Reddit'];
+
+const PERSONA_MAP = {
+  'developer': 'Developer / Engineer',
+  'engineer':  'Developer / Engineer',
+  'data':      'Data & AI Specialist',
+  'ai specialist': 'Data & AI Specialist',
+  'security':  'Cybersecurity Expert',
+  'ciso':      'Cybersecurity Expert',
+  'cybersecurity': 'Cybersecurity Expert',
+  'executive': 'C-Suite / Executive',
+  'ceo':       'C-Suite / Executive',
+  'cto':       'C-Suite / Executive',
+  'cxo':       'C-Suite / Executive',
+  'founder':   'Entrepreneur / Founder',
+  'entrepreneur': 'Entrepreneur / Founder',
+  'thought leader': 'Thought Leader (Author, Speaker, Analyst)',
+  'analyst':   'Thought Leader (Author, Speaker, Analyst)',
+  'speaker':   'Thought Leader (Author, Speaker, Analyst)',
+  'podcast':   'Media / Content Creator (Podcast, YouTube)',
+  'youtuber':  'Media / Content Creator (Podcast, YouTube)',
+  'content creator': 'Media / Content Creator (Podcast, YouTube)',
+  'educator':  'Educator / Researcher',
+  'researcher': 'Educator / Researcher',
+  'sustainability': 'Sustainability / Climate',
+  'climate':   'Sustainability / Climate',
+  'fintech':   'FinTech / Finance',
+  'finance':   'FinTech / Finance',
+};
+
+const GEO_ALIASES = {
+  'americas':       'americas',
+  'america':        'americas',
+  'us':             'americas',
+  'usa':            'americas',
+  'united states':  'americas',
+  'canada':         'americas',
+  'north america':  'americas',
+  'latin america':  'americas',
+  'brazil':         'americas',
+  'uk':             'uk',
+  'united kingdom': 'uk',
+  'britain':        'uk',
+  'england':        'uk',
+  'emea':           'emea',
+  'europe':         'emea',
+  'germany':        'emea',
+  'france':         'emea',
+  'middle east':    'emea',
+  'africa':         'emea',
+  'india':          'india',
+};
+
+// GEO_PATTERNS already defined above — reuse it for matching
+function geoMatch(text) {
+  for (const [alias, geo] of Object.entries(GEO_ALIASES)) {
+    if (text.includes(alias)) return geo;
+  }
+  return null;
+}
+
+function fuzzyMatch(text, candidates) {
+  const lower = text.toLowerCase();
+  // exact substring first
+  const exact = candidates.find(c => lower.includes(c.toLowerCase()));
+  if (exact) return exact;
+  // word overlap — require at least 4-char words to avoid false matches on "in", "re", etc.
+  const words = lower.split(/\s+/).filter(w => w.length >= 4);
+  if (words.length === 0) return null;
+  let best = null, bestScore = 0;
+  for (const c of candidates) {
+    const cWords = c.toLowerCase().split(/[\s/&:,]+/).filter(w => w.length >= 4);
+    if (cWords.length === 0) continue;
+    const overlap = words.filter(w => cWords.some(cw => cw === w || (cw.length >= 5 && (cw.includes(w) || w.includes(cw))))).length;
+    if (overlap > bestScore) { bestScore = overlap; best = c; }
+  }
+  return bestScore > 0 ? best : null;
+}
+
+function parseFollowerBound(text) {
+  // "under 5k", "less than 10000", "below 50k", "over 100k", "more than 1m", "between 10k and 100k"
+  const between = text.match(/between\s+(\d+\.?\d*)\s*([km]?)\s+and\s+(\d+\.?\d*)\s*([km]?)/i);
+  if (between) {
+    const mult = m => ({ k: 1000, m: 1000000 }[m.toLowerCase()] || 1);
+    return {
+      min: Math.round(parseFloat(between[1]) * mult(between[2] || '')),
+      max: Math.round(parseFloat(between[3]) * mult(between[4] || '')),
+    };
+  }
+  const under = text.match(/(?:under|below|less\s+than|fewer\s+than)\s+(\d+\.?\d*)\s*([km]?)/i);
+  if (under) {
+    const mult = { k: 1000, m: 1000000 }[under[2].toLowerCase()] || 1;
+    return { min: 0, max: Math.round(parseFloat(under[1]) * mult) };
+  }
+  const over = text.match(/(?:over|above|more\s+than|at\s+least)\s+(\d+\.?\d*)\s*([km]?)/i);
+  if (over) {
+    const mult = { k: 1000, m: 1000000 }[over[2].toLowerCase()] || 1;
+    return { min: Math.round(parseFloat(over[1]) * mult), max: Infinity };
+  }
+  return null;
+}
+
+function chatQuery(message) {
+  const lower = message.toLowerCase();
+  const filters = {};
+  const appliedFilters = [];
+
+  // ── Status / approval ────────────────────────────────────────────────────
+  if (/\bactive\b/.test(lower))   { filters.status = 'active';   appliedFilters.push('status: active'); }
+  if (/\bapproved\b/.test(lower)) { filters.approval_status = 'approved'; appliedFilters.push('approval: approved'); }
+  if (/ibm content|\bibm\b.*post|has.*content/.test(lower)) { filters.has_content = 'true'; appliedFilters.push('has IBM content'); }
+
+  // ── Type ─────────────────────────────────────────────────────────────────
+  if (/\bexternal\b/.test(lower)) { filters.type = 'external'; appliedFilters.push('type: external'); }
+  if (/internal|social league/.test(lower)) { filters.type = 'internal'; appliedFilters.push('type: internal'); }
+
+  // ── Platform ─────────────────────────────────────────────────────────────
+  const platform = fuzzyMatch(lower, KNOWN_PLATFORMS);
+  if (platform) { filters.platform = platform; appliedFilters.push(`platform: ${platform}`); }
+
+  // ── Event ────────────────────────────────────────────────────────────────
+  const event = fuzzyMatch(lower, KNOWN_EVENTS);
+  if (event) { filters.event = event; appliedFilters.push(`event: ${event}`); }
+
+  // ── Campaign type ────────────────────────────────────────────────────────
+  const campaign = fuzzyMatch(lower, KNOWN_CAMPAIGNS);
+  if (campaign) { filters.campaign_type = campaign; appliedFilters.push(`campaign: ${campaign}`); }
+
+  // ── Persona ───────────────────────────────────────────────────────────────
+  let persona = null;
+  for (const [alias, group] of Object.entries(PERSONA_MAP)) {
+    if (lower.includes(alias)) { persona = group; break; }
+  }
+  if (persona) { filters.persona_group = persona; appliedFilters.push(`persona: ${persona}`); }
+
+  // ── Geography ────────────────────────────────────────────────────────────
+  const geo = geoMatch(lower);
+  if (geo) { filters.location = geo; appliedFilters.push(`geo: ${geo}`); }
+
+  // ── Follower bounds ───────────────────────────────────────────────────────
+  const followerBound = parseFollowerBound(lower);
+
+  // ── Run query ─────────────────────────────────────────────────────────────
+  let results = listInfluencers(filters);
+
+  // Post-filter follower count (can't easily do in SQL with current schema)
+  if (followerBound) {
+    results = results.filter(inf => {
+      const total = inf.platforms.reduce((s, p) => s + (p.follower_count || 0), 0);
+      return total >= followerBound.min && (followerBound.max === Infinity || total <= followerBound.max);
+    });
+    const label = followerBound.max === Infinity
+      ? `followers > ${followerBound.min.toLocaleString()}`
+      : followerBound.min === 0
+        ? `followers < ${followerBound.max.toLocaleString()}`
+        : `followers ${followerBound.min.toLocaleString()}–${followerBound.max.toLocaleString()}`;
+    appliedFilters.push(label);
+  }
+
+  // Strip rate from results
+  results = results.map(({ rate, ...rest }) => rest);
+
+  // Build a human-readable reply
+  let reply;
+  if (appliedFilters.length === 0) {
+    // No structured filters found — fall back to keyword search
+    const searched = searchInfluencers(message).map(({ rate, ...rest }) => rest);
+    if (searched.length > 0) {
+      reply = `Found ${searched.length} creator${searched.length !== 1 ? 's' : ''} matching your query.`;
+      return { reply, results: searched, filters: {} };
+    }
+    reply = "I couldn't identify any specific filters in your query. Try mentioning a location (e.g. \"Americas\"), event (e.g. \"IBM Think\"), platform, or follower range.";
+    return { reply, results: [], filters: {} };
+  }
+
+  if (results.length === 0) {
+    reply = `No creators found matching: ${appliedFilters.join(', ')}. Try broadening your criteria.`;
+  } else {
+    reply = `Found ${results.length} creator${results.length !== 1 ? 's' : ''} — filtered by ${appliedFilters.join(', ')}.`;
+  }
+
+  return { reply, results, filters };
 }
 
 module.exports = {
@@ -599,6 +1047,10 @@ module.exports = {
   getContentFeed,
   createContentEntry,
   upsertContentEntry,
+  updateContentEntry,
+  deleteContentEntry,
+  backfillPostDates,
+  extractPostDateFromUrl,
   getInfluencerById,
   getInfluencerContent,
   getInfluencerRate,
@@ -606,6 +1058,7 @@ module.exports = {
   getStats,
   listInfluencers,
   searchInfluencers,
+  chatQuery,
   listSocialLeague,
   createSocialLeagueMember,
   upsertSocialLeagueMember,
