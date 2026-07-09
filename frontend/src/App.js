@@ -339,10 +339,9 @@ function parseCsv(text) {
 
   if (rows.length < 2) return [];
   // Skip any leading title rows — find the first row that looks like a header
-  // (contains a cell that is or ends with "name", or contains "creator name")
   const isHeaderRow = r => r.some(c => {
     const v = c.trim().toLowerCase();
-    return v === 'name' || v === 'creator name' || v.endsWith(' name') || v === 'creator_name';
+    return v === 'name' || v === 'creator name' || v.endsWith(' name') || v === 'creator_name' || v === 'influencer';
   });
   const headerIdx = rows.findIndex(isHeaderRow);
   if (headerIdx === -1 || headerIdx >= rows.length - 1) return [];
@@ -357,10 +356,69 @@ function parseCsv(text) {
 // Normalise a CSV header key: lowercase, collapse spaces/special chars to underscores
 function normKey(h) { return h.trim().toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, ''); }
 
-function csvRowToInfluencer(row) {
+function csvRowToInfluencer(row, campaignName = '') {
   const platforms = [];
 
-  // Check for simple single-platform format: Social Platform URL, Handle, Followers
+  // ── Agency template format ────────────────────────────────────────────────
+  // Headers: Influencer, Location, About/Bio, Rationale, YouTube Link,
+  // YouTube Followers, LinkedIn Link, LinkedIn Followers,
+  // {Insert other relevant channels}, {Insert other relevant channel followers}
+  const isAgencyFormat = Object.keys(row).some(k => normKey(k) === 'influencer');
+
+  if (isAgencyFormat) {
+    const fixedPlatforms = [
+      { urlKey: 'youtube_link',   followersKey: 'youtube_followers',  name: 'YouTube'   },
+      { urlKey: 'linkedin_link',  followersKey: 'linkedin_followers', name: 'LinkedIn'  },
+      { urlKey: 'instagram_link', followersKey: 'instagram_followers',name: 'Instagram' },
+      { urlKey: 'tiktok_link',    followersKey: 'tiktok_followers',   name: 'TikTok'    },
+      { urlKey: 'x_link',         followersKey: 'x_followers',        name: 'X'         },
+      { urlKey: 'twitter_link',   followersKey: 'twitter_followers',  name: 'X'         },
+    ];
+    for (const { urlKey, followersKey, name } of fixedPlatforms) {
+      const urlVal = Object.keys(row).find(k => normKey(k) === urlKey);
+      const flwVal = Object.keys(row).find(k => normKey(k) === followersKey);
+      const url = urlVal ? (row[urlVal] || '').trim() : '';
+      if (!url) continue;
+      const follower_count = parseFollowerCount(flwVal ? (row[flwVal] || '0') : '0');
+      platforms.push({ platform: name, url, handle: '', follower_count });
+    }
+
+    // Dynamic "other channel" columns — any remaining cell that looks like a URL
+    const handledKeys = new Set(['influencer','location','about_bio','rationale',
+      'notes_sj_feedback','youtube_link','youtube_followers','youtube_er',
+      'linkedin_link','linkedin_followers','linkedin_er',
+      'insert_other_relevant_channels','insert_other_relevant_channel_followers',
+      'insert_other_relevant_channel_er']);
+    for (const [key, val] of Object.entries(row)) {
+      if (handledKeys.has(normKey(key))) continue;
+      const v = (val || '').trim();
+      if (!v) continue;
+      const detectedPlatform = PLATFORM_FROM_URL(v);
+      if (detectedPlatform && !platforms.find(p => p.platform === detectedPlatform)) {
+        platforms.push({ platform: detectedPlatform, url: v, handle: '', follower_count: 0 });
+      }
+    }
+
+    const bioKey       = Object.keys(row).find(k => normKey(k) === 'about_bio');
+    const rationaleKey = Object.keys(row).find(k => normKey(k) === 'rationale');
+    const locationKey  = Object.keys(row).find(k => normKey(k) === 'location');
+    const nameKey      = Object.keys(row).find(k => normKey(k) === 'influencer');
+    const bio          = (row[bioKey]       || '').trim();
+    const rationale    = (row[rationaleKey] || '').trim();
+
+    return {
+      name:            (row[nameKey]     || '').trim(),
+      persona_group:   'Developer / Engineer',
+      bio:             [bio, rationale].filter(Boolean).join('\n\n'),
+      location:        (row[locationKey] || '').trim(),
+      status:          'active',
+      approval_status: 'pending',
+      platforms,
+      campaign_types:  campaignName ? [campaignName] : [],
+    };
+  }
+
+  // ── Standard / legacy format ──────────────────────────────────────────────
   const simplePlatformUrlKey = Object.keys(row).find(k => normKey(k) === 'social_platform_url');
   const simpleHandleKey      = Object.keys(row).find(k => normKey(k) === 'handle');
   const simpleFollowersKey   = Object.keys(row).find(k => normKey(k) === 'followers' || normKey(k) === 'follower_count');
@@ -375,7 +433,6 @@ function csvRowToInfluencer(row) {
       if (platform) platforms.push({ platform, url, handle, follower_count });
     }
   } else {
-    // Numbered platform slots: Social Platform URL #1, Handle #1, Follower Count #1 … up to however many exist
     for (let n = 1; n <= 10; n++) {
       const urlKey    = Object.keys(row).find(k => normKey(k) === normKey(`social platform url #${n}`) || normKey(k) === normKey(`social platform url ${n}`));
       const handleKey = Object.keys(row).find(k => normKey(k) === normKey(`handle #${n}`) || normKey(k) === normKey(`handle ${n}`));
@@ -391,22 +448,20 @@ function csvRowToInfluencer(row) {
   }
 
   const personaRaw = row['persona'] || row['persona_group'] || 'Developer / Engineer';
-
-  const campaigns = row['campaigns']
+  const campaigns  = row['campaigns']
     ? row['campaigns'].split(/[;|]+/).map(c => c.trim()).filter(Boolean)
-    : [];
-
+    : campaignName ? [campaignName] : [];
   const geos = row['geos'] || row['geo'] || row['location'] || '';
 
   return {
-    name: row['name'] || '',
-    persona_group: personaRaw,
-    bio: row['description'] || row['bio'] || '',
-    location: geos,
-    status: 'active',
+    name:            row['name'] || '',
+    persona_group:   personaRaw,
+    bio:             row['description'] || row['bio'] || '',
+    location:        geos,
+    status:          'active',
     approval_status: 'pending',
     platforms,
-    campaign_types: campaigns,
+    campaign_types:  campaigns,
   };
 }
 
@@ -434,13 +489,16 @@ function CsvUploadModal({ open, onClose, onImport }) {
     reader.readAsText(f);
   }
 
+  // Derive campaign name from filename: strip extension and clean up
+  const campaignName = file ? file.name.replace(/\.csv$/i, '').trim() : '';
+
   function handleImport() {
     if (!file) return;
     const reader = new FileReader();
     reader.onload = (ev) => {
       const rows = parseCsv(ev.target.result);
-      const influencers = rows.map(csvRowToInfluencer).filter(i => i.name.trim());
-      onImport(influencers);
+      const influencers = rows.map(r => csvRowToInfluencer(r, campaignName)).filter(i => i.name.trim());
+      onImport(influencers, campaignName);
     };
     reader.readAsText(file);
   }
@@ -457,14 +515,11 @@ function CsvUploadModal({ open, onClose, onImport }) {
       onSecondarySubmit={onClose}
       size="md"
     >
-      <p style={{ marginBottom: '0.5rem', fontSize: '0.875rem', color: '#57606a' }}>
-        Upload a CSV with the following columns. Two formats are accepted:
-      </p>
-      <p style={{ marginBottom: '0.25rem', fontSize: '0.8125rem', fontFamily: 'monospace', background: '#f7f8fa', padding: '0.5rem', borderRadius: '4px', wordBreak: 'break-all' }}>
-        <strong>Simple:</strong> Name, Social Platform URL, Handle, Persona, Description, Campaigns, Followers, Geos
+      <p style={{ marginBottom: '0.75rem', fontSize: '0.875rem', color: '#57606a' }}>
+        Supports the agency pre-vetting template directly. The <strong>filename</strong> will be used as the campaign name. If an influencer already exists in the database their profile will be updated, not duplicated.
       </p>
       <p style={{ marginBottom: '1rem', fontSize: '0.8125rem', fontFamily: 'monospace', background: '#f7f8fa', padding: '0.5rem', borderRadius: '4px', wordBreak: 'break-all' }}>
-        <strong>Multi-platform:</strong> Name, Persona, Description, Campaigns, Geos, Social Platform URL #1, Handle #1, Follower Count #1, Social Platform URL #2, Handle #2, Follower Count #2, …
+        <strong>Agency template:</strong> Influencer, Location, About/Bio, Rationale, YouTube Link, YouTube Followers, LinkedIn Link, LinkedIn Followers, …
       </p>
       <FileUploader
         labelTitle="Select CSV file"
@@ -474,6 +529,11 @@ function CsvUploadModal({ open, onClose, onImport }) {
         filenameStatus="edit"
         onChange={handleFileChange}
       />
+      {campaignName && (
+        <p style={{ marginTop: '0.75rem', fontSize: '0.8125rem', color: '#3b82d4' }}>
+          Campaign: <strong>{campaignName}</strong>
+        </p>
+      )}
       {error && (
         <InlineNotification
           kind="error"
@@ -491,23 +551,24 @@ function CsvUploadModal({ open, onClose, onImport }) {
             <table style={{ borderCollapse: 'collapse', fontSize: '0.8125rem', width: '100%' }}>
               <thead>
                 <tr style={{ background: '#f7f8fa', borderBottom: '1px solid #e5e7eb' }}>
-                  {['Name','Persona','Platforms','Geos'].map(h => (
+                  {['Name','Platforms','Location','Campaign'].map(h => (
                     <th key={h} style={{ padding: '4px 8px', textAlign: 'left', fontWeight: 600 }}>{h}</th>
                   ))}
                 </tr>
               </thead>
               <tbody>
                 {preview.map((row, i) => {
-                  const inf = csvRowToInfluencer(row);
+                  const inf = csvRowToInfluencer(row, campaignName);
+                  const nameVal = row['influencer'] || row['name'] || '—';
                   const platformSummary = inf.platforms.length
-                    ? inf.platforms.map(p => `${p.platform}${p.handle ? ` (${p.handle})` : ''}`).join(', ')
+                    ? inf.platforms.map(p => p.platform).join(', ')
                     : '—';
                   return (
                     <tr key={i} style={{ borderBottom: '1px solid #e5e7eb' }}>
-                      <td style={{ padding: '4px 8px' }}>{row['name']}</td>
-                      <td style={{ padding: '4px 8px' }}>{row['persona'] || row['persona_group'] || '—'}</td>
+                      <td style={{ padding: '4px 8px' }}>{nameVal}</td>
                       <td style={{ padding: '4px 8px' }}>{platformSummary}</td>
-                      <td style={{ padding: '4px 8px' }}>{row['geos'] || row['geo'] || row['location'] || '—'}</td>
+                      <td style={{ padding: '4px 8px' }}>{inf.location || '—'}</td>
+                      <td style={{ padding: '4px 8px' }}>{campaignName || '—'}</td>
                     </tr>
                   );
                 })}
@@ -515,8 +576,7 @@ function CsvUploadModal({ open, onClose, onImport }) {
             </table>
           </div>
           <p style={{ marginTop: '0.5rem', fontSize: '0.8125rem', color: '#57606a' }}>
-            {/* total row count shown after reading full file on import */}
-            Ready to import all rows from this file.
+            Ready to import all rows. Existing influencers (matched by name) will be merged.
           </p>
         </div>
       )}
