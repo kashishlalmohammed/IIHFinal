@@ -324,6 +324,13 @@ function getStats() {
   };
 }
 
+function getCampaignTypes() {
+  const rows = db.prepare(
+    `SELECT DISTINCT campaign_type FROM influencer_campaign_types ORDER BY campaign_type`
+  ).all();
+  return rows.map(r => r.campaign_type).filter(Boolean);
+}
+
 function searchInfluencers(query) {
   if (!query) {
     return listInfluencers();
@@ -1058,6 +1065,7 @@ module.exports = {
   getStats,
   listInfluencers,
   searchInfluencers,
+  getCampaignTypes,
   chatQuery,
   listSocialLeague,
   createSocialLeagueMember,

@@ -28,6 +28,7 @@ const {
   getStats,
   listInfluencers,
   searchInfluencers,
+  getCampaignTypes,
 } = require('./db');
 
 const { aiChatQuery } = require('./ai');
@@ -80,6 +81,10 @@ app.put('/api/social-league/:id', (req, res) => {
 
 app.get('/api/stats', (req, res) => {
   res.json(getStats());
+});
+
+app.get('/api/campaigns', (req, res) => {
+  res.json(getCampaignTypes());
 });
 
 app.get('/api/influencers', (req, res) => {

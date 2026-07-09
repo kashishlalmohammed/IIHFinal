@@ -695,8 +695,8 @@ function LeftPanel({ influencers, selectedId, onSelect, onSearch, onFilter, filt
             { value:'', text:'All Personas' },
             ...['Developer','AI Decision Makers','Data Leaders','Secure','Infrastructure','Industry','Sports, Entertainment, and Partnerships','CxO programs','Digital Sovereignty'].map(p => ({ value:p, text:p })),
           ]} onChange={v => onFilter('persona_group', v)} />
-          <FilterSelect label="Campaigns" value={filters.events} options={campaignOptions || BASE_CAMPAIGN_OPTIONS}
-            onChange={v => onFilter('events', v)} />
+          <FilterSelect label="Campaigns" value={filters.campaign_type} options={campaignOptions || BASE_CAMPAIGN_OPTIONS}
+            onChange={v => onFilter('campaign_type', v)} />
           <FilterSelect label="Geo" value={filters.location} options={[
             { value: '', text: 'All Geos' },
             { value: 'Americas', text: 'Americas' },
@@ -2071,7 +2071,7 @@ export default function App() {
   const [localOverrides, setLocalOverrides] = useState({}); // id -> patched fields
   const [selectedId, setSelected] = useState(null);
   const [searchQuery, setSearch] = useState('');
-  const [filters, setFilters]   = useState({ type:'', status:'', platform:'', approval_status:'', persona_group:'', has_content:'', campaign_type:'', events:'', location:'' });
+  const [filters, setFilters]   = useState({ type:'', status:'', platform:'', approval_status:'', persona_group:'', has_content:'', campaign_type:'', location:'' });
   const [showFeed, setShowFeed] = useState(false);
   const [showSocialLeague, setShowSocialLeague] = useState(false);
   const [sideNavExpanded, setSideNavExpanded] = useState(false);
@@ -2084,19 +2084,23 @@ export default function App() {
     Promise.all([
       fetch(`${API}/stats`).then(r => r.json()),
       fetch(`${API}/social-league`).then(r => r.json()),
-    ]).then(([s, league]) => {
+      fetch(`${API}/campaigns`).then(r => r.json()),
+    ]).then(([s, league, campaigns]) => {
       setStats({ ...s, socialLeague: Array.isArray(league) ? league.length : 0 });
+      if (Array.isArray(campaigns) && campaigns.length > 0) {
+        setCampaignOptions(prev => {
+          const existing = new Set(prev.map(o => o.value));
+          const newOpts = campaigns.filter(c => !existing.has(c)).map(c => ({ value: c, text: c }));
+          return newOpts.length > 0 ? [...prev, ...newOpts] : prev;
+        });
+      }
     });
   }, []);
 
   useEffect(() => {
     const params = new URLSearchParams();
     Object.entries(filters).forEach(([k, v]) => {
-      if (k === 'events') {
-        if (v) params.set('event', v);
-      } else if (v) {
-        params.set(k, v);
-      }
+      if (v) params.set(k, v);
     });
 
     if (searchQuery.trim()) {
