@@ -206,7 +206,7 @@ Be helpful, direct, and professional.`;
 
 // ── Main exported function ────────────────────────────────────────────────────
 
-async function aiChatQuery(message) {
+async function aiChatQuery(message, history = []) {
   // If no API key is set, fall back to the original rule-based chatQuery
   if (!process.env.GROQ_API_KEY) {
     const { chatQuery } = require('./db');
@@ -215,8 +215,10 @@ async function aiChatQuery(message) {
 
   const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
 
+  // Build messages: system prompt + conversation history + latest user message
   const messages = [
     { role: 'system', content: SYSTEM_PROMPT },
+    ...history.map(m => ({ role: m.role, content: m.text })),
     { role: 'user', content: message },
   ];
 

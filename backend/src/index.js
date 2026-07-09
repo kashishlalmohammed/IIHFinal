@@ -263,12 +263,12 @@ app.post('/api/search', (req, res) => {
 });
 
 app.post('/api/chat', async (req, res) => {
-  const { message } = req.body;
+  const { message, history } = req.body;
   if (!message || !String(message).trim()) {
     return res.status(400).json({ error: 'message is required' });
   }
   try {
-    const result = await aiChatQuery(String(message).trim());
+    const result = await aiChatQuery(String(message).trim(), Array.isArray(history) ? history : []);
     res.json(result);
   } catch (err) {
     res.status(500).json({ error: err.message });

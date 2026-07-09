@@ -1813,13 +1813,26 @@ function ChatBot({ onSelectInfluencer }) {
     const msg = (text || input).trim();
     if (!msg) return;
     setInput('');
-    setMessages(prev => [...prev, { role: 'user', text: msg }]);
+    setMessages(prev => {
+      const updated = [...prev, { role: 'user', text: msg }];
+      // Fire the request inside the state updater so we have the latest messages
+      _sendRequest(msg, updated);
+      return updated;
+    });
+  }
+
+  async function _sendRequest(msg, currentMessages) {
     setLoading(true);
+    // Build conversation history for the AI (exclude the initial bot greeting)
+    const history = currentMessages
+      .slice(1) // skip greeting
+      .slice(-10) // last 10 messages for context window efficiency
+      .map(m => ({ role: m.role === 'bot' ? 'assistant' : 'user', text: m.text }));
     try {
       const r = await fetch(`${API}/chat`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: msg }),
+        body: JSON.stringify({ message: msg, history }),
       });
       const data = await r.json();
       setMessages(prev => [
