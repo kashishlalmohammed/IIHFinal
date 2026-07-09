@@ -515,11 +515,14 @@ function CsvUploadModal({ open, onClose, onImport }) {
       onSecondarySubmit={onClose}
       size="md"
     >
-      <p style={{ marginBottom: '0.75rem', fontSize: '0.875rem', color: '#57606a' }}>
-        Supports the agency pre-vetting template directly. The <strong>filename</strong> will be used as the campaign name. If an influencer already exists in the database their profile will be updated, not duplicated.
+      <p style={{ marginBottom: '0.5rem', fontSize: '0.875rem', color: '#57606a' }}>
+        The <strong>filename</strong> will be used as the campaign name. Existing influencers matched by name will be updated, not duplicated. Two formats accepted:
+      </p>
+      <p style={{ marginBottom: '0.25rem', fontSize: '0.8125rem', fontFamily: 'monospace', background: '#f7f8fa', padding: '0.5rem', borderRadius: '4px', wordBreak: 'break-all' }}>
+        <strong>Agency template:</strong> Influencer, Location, About/Bio, Rationale, YouTube Link, YouTube Followers, LinkedIn Link, LinkedIn Followers, …
       </p>
       <p style={{ marginBottom: '1rem', fontSize: '0.8125rem', fontFamily: 'monospace', background: '#f7f8fa', padding: '0.5rem', borderRadius: '4px', wordBreak: 'break-all' }}>
-        <strong>Agency template:</strong> Influencer, Location, About/Bio, Rationale, YouTube Link, YouTube Followers, LinkedIn Link, LinkedIn Followers, …
+        <strong>Standard:</strong> Name, Social Platform URL, Handle, Persona, Description, Campaigns, Followers, Geos — or numbered: Social Platform URL #1, Handle #1, Follower Count #1, …
       </p>
       <FileUploader
         labelTitle="Select CSV file"
