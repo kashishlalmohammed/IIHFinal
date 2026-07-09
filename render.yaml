@@ -1,0 +1,20 @@
+services:
+  - type: web
+    name: influencer-hub
+    runtime: node
+    region: oregon
+    plan: free
+    rootDir: .
+    buildCommand: npm install --prefix frontend && npm run build --prefix frontend && npm install --prefix backend
+    startCommand: node backend/src/index.js
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 3001
+      - key: DATA_DIR
+        value: /opt/render/project/src/backend/data
+      - key: GROQ_API_KEY
+        sync: false
+      - key: TAVILY_API_KEY
+        sync: false
