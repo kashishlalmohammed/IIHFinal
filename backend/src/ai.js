@@ -90,10 +90,43 @@ const TOOLS = [
       },
     },
   },
+  {
+    type: 'function',
+    function: {
+      name: 'web_search',
+      description: 'Search the internet for information about influencers, trends, or anything not in the database. Use when asked for recommendations of new influencers to consider, or for external knowledge.',
+      parameters: {
+        type: 'object',
+        properties: {
+          query: { type: 'string', description: 'Search query string' },
+        },
+        required: ['query'],
+      },
+    },
+  },
 ];
 
-// Groq's built-in web search tool — no extra API key needed
-const WEB_SEARCH_TOOL = { type: 'web_search' };
+// ── Web search via Tavily (free tier: 1,000 searches/month) ──────────────────
+
+async function webSearch(query) {
+  const apiKey = process.env.TAVILY_API_KEY;
+  if (!apiKey) {
+    return [{ snippet: 'Web search is not configured. Please set TAVILY_API_KEY in your .env file.' }];
+  }
+
+  const res = await fetch('https://api.tavily.com/search', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ api_key: apiKey, query, max_results: 5 }),
+  });
+
+  if (!res.ok) {
+    return [{ snippet: `Web search failed: ${res.status} ${res.statusText}` }];
+  }
+
+  const data = await res.json();
+  return (data.results || []).map(r => ({ title: r.title, snippet: r.content, url: r.url }));
+}
 
 // ── Tool executor ─────────────────────────────────────────────────────────────
 
@@ -141,6 +174,8 @@ function executeTool(name, args) {
     }
     case 'list_social_league':
       return listSocialLeague(args);
+    case 'web_search':
+      return webSearch(args.query);
     default:
       return { error: `Unknown tool: ${name}` };
   }
@@ -152,12 +187,11 @@ const SYSTEM_PROMPT = `You are the Creator Assistant for IBM's Influencer Intell
 
 You have access to two types of tools:
 1. Database tools — query the live influencer database (use these for anything about existing influencers, stats, campaigns)
-2. Web search — search the internet (use this ONLY when asked for recommendations, suggestions, or information about influencers outside the database)
+2. web_search — search the internet (use this when asked for recommendations, suggestions, or information about influencers NOT in the database)
 
 Always call a database tool before answering questions about existing influencers, statistics, or campaigns — never guess.
-Use web search when the user explicitly asks for recommendations, new influencers to consider, or anything that requires up-to-date external knowledge.
-
-When recommending influencers from web search, always clarify they are not currently in the database and suggest the user consider adding them.
+Use web_search when the user asks for recommendations of new influencers, external talent ideas, or anything requiring up-to-date external knowledge.
+When sharing web search results, always clarify these people are not currently in the database and suggest adding strong candidates.
 When listing influencers in your reply, be concise: mention their name, persona, and one relevant data point. If there are more than 5 results, summarise the count and highlight the top ones.
 
 The database contains:
@@ -191,7 +225,7 @@ async function aiChatQuery(message) {
     const response = await groq.chat.completions.create({
       model: 'llama-3.3-70b-versatile',
       messages,
-      tools: [...TOOLS, WEB_SEARCH_TOOL],
+      tools: TOOLS,
       tool_choice: 'auto',
       max_tokens: 1024,
     });
@@ -218,28 +252,18 @@ async function aiChatQuery(message) {
       return { reply, results: lastToolResults, filters: {} };
     }
 
-    // Execute all tool calls in parallel
-    // Note: web_search is handled natively by Groq — its results come back
-    // automatically in the next completion, so we only need to execute our own tools.
+    // Execute all tool calls in parallel (web_search returns a Promise, rest are sync)
     const toolResults = await Promise.all(
-      assistantMsg.tool_calls
-        .filter(tc => tc.function.name !== 'web_search')
-        .map(async tc => {
-          const args = JSON.parse(tc.function.arguments);
-          const result = executeTool(tc.function.name, args);
-          return {
-            role: 'tool',
-            tool_call_id: tc.id,
-            content: JSON.stringify(result),
-          };
-        })
+      assistantMsg.tool_calls.map(async tc => {
+        const args = JSON.parse(tc.function.arguments);
+        const result = await executeTool(tc.function.name, args);
+        return {
+          role: 'tool',
+          tool_call_id: tc.id,
+          content: JSON.stringify(result),
+        };
+      })
     );
-
-    // Only push tool results if there were non-web-search calls
-    if (toolResults.length === 0) {
-      // All calls were web_search — Groq handles them; just continue the loop
-      continue;
-    }
 
     messages.push(...toolResults);
   }
