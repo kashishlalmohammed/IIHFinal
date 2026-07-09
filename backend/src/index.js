@@ -17,6 +17,10 @@ const {
   getContentFeed,
   createContentEntry,
   upsertContentEntry,
+  updateContentEntry,
+  deleteContentEntry,
+  backfillPostDates,
+  extractPostDateFromUrl,
   getInfluencerById,
   getInfluencerContent,
   getInfluencerRate,
@@ -26,12 +30,17 @@ const {
   searchInfluencers,
 } = require('./db');
 
+const { aiChatQuery } = require('./ai');
+
 const app = express();
 app.use(cors());
 app.use(express.json());
 
-const uiBuild = path.join(__dirname, '../../frontend/build');
-app.use(express.static(uiBuild));
+// In Docker the frontend build is copied to /app/frontend/build (sibling of src/).
+// Locally (running from backend/) it resolves to the same relative path.
+const uiBuild = process.env.DATA_DIR
+  ? path.join(__dirname, '../frontend/build')   // Docker: /app/frontend/build
+  : path.join(__dirname, '../../frontend/build'); // Local: backend/../frontend/build
 
 app.get('/api/social-league', (req, res) => {
   res.json(listSocialLeague(req.query));
@@ -215,11 +224,59 @@ app.post('/api/content/upsert', (req, res) => {
   }
 });
 
+app.put('/api/content/:id', (req, res) => {
+  try {
+    const body = { ...req.body };
+    // Auto-extract date from URL if not manually provided
+    if (!body.post_date && body.permalink) {
+      body.post_date = extractPostDateFromUrl(body.permalink) || null;
+    }
+    const entry = updateContentEntry(req.params.id, body);
+    if (!entry) return res.status(404).json({ error: 'Not found' });
+    res.json(entry);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.delete('/api/content/:id', (req, res) => {
+  try {
+    deleteContentEntry(req.params.id);
+    res.status(204).end();
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/content/backfill-dates', async (req, res) => {
+  try {
+    const result = await backfillPostDates();
+    res.json(result);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 app.post('/api/search', (req, res) => {
   const results = searchInfluencers(req.body.query).map(({ rate, ...rest }) => rest);
   res.json(results.length > 0 ? results : listInfluencers().map(({ rate, ...rest }) => rest));
 });
 
+app.post('/api/chat', async (req, res) => {
+  const { message } = req.body;
+  if (!message || !String(message).trim()) {
+    return res.status(400).json({ error: 'message is required' });
+  }
+  try {
+    const result = await aiChatQuery(String(message).trim());
+    res.json(result);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Serve static frontend AFTER all API routes so the wildcard never intercepts API calls
+app.use(express.static(uiBuild));
 app.get('/{*splat}', (req, res) => {
   res.sendFile(path.join(uiBuild, 'index.html'));
 });

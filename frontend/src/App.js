@@ -10,12 +10,12 @@ import {
   // Tiles
   Tile,
   // Inputs
-  Search, Button, Dropdown, Tag, Modal, TextInput, TextArea, Select, SelectItem,
+  Search, Button, Tag, Modal, TextInput, TextArea, Select, SelectItem,
   FileUploader,
   // Tabs
   Tabs, Tab, TabList, TabPanels, TabPanel,
   // Notifications
-  InlineNotification, ToastNotification,
+  InlineNotification,
   // Data display
   StructuredListWrapper, StructuredListHead, StructuredListRow,
   StructuredListCell, StructuredListBody,
@@ -47,31 +47,45 @@ function fmt(n) {
   return String(n);
 }
 
-function fmtDate(raw) {
-  if (!raw) return '—';
-  const d = new Date(raw + 'T00:00:00');
-  if (isNaN(d)) return raw;
-  return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+// ── Creator Avatar ────────────────────────────────────────────────────────────
+
+const AVATAR_PALETTES = [
+  { bg: '#0f62fe', fg: '#ffffff' }, // IBM Blue 60
+  { bg: '#6929c4', fg: '#ffffff' }, // Purple 70
+  { bg: '#005d5d', fg: '#ffffff' }, // Teal 70
+  { bg: '#9f1853', fg: '#ffffff' }, // Magenta 70
+  { bg: '#198038', fg: '#ffffff' }, // Green 60
+  { bg: '#b28600', fg: '#ffffff' }, // Yellow 40 (dark)
+  { bg: '#0043ce', fg: '#ffffff' }, // Blue 70
+  { bg: '#da1e28', fg: '#ffffff' }, // Red 60
+];
+
+function avatarColor(name = '') {
+  let hash = 0;
+  for (let i = 0; i < name.length; i++) hash = (hash * 31 + name.charCodeAt(i)) | 0;
+  return AVATAR_PALETTES[Math.abs(hash) % AVATAR_PALETTES.length];
+}
+
+function getInitials(name = '') {
+  const parts = name.trim().split(/\s+/);
+  if (parts.length >= 2) return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+  return name.slice(0, 2).toUpperCase();
+}
+
+function CreatorAvatar({ name, size = 'sm' }) {
+  const { bg, fg } = avatarColor(name);
+  return (
+    <span
+      className={`hub-avatar hub-avatar--${size}`}
+      style={{ background: bg, color: fg }}
+      aria-hidden="true"
+    >
+      {getInitials(name)}
+    </span>
+  );
 }
 
 // ── Status / Approval / Type badges as Carbon Tags ────────────────────────────
-
-const STATUS_TYPE = { active: 'green', dormant: 'yellow', dnu: 'red' };
-const STATUS_LABEL = { active: 'Active', dormant: 'Dormant', dnu: 'Do Not Use' };
-const APPROVAL_TYPE = { approved: 'green', pending: 'blue', declined: 'red' };
-const APPROVAL_LABEL = { approved: '✓ Approved', pending: '? Pending', declined: '✗ Declined' };
-
-function StatusTag({ status }) {
-  return <Tag type={STATUS_TYPE[status] || 'gray'} size="sm">{STATUS_LABEL[status] || status}</Tag>;
-}
-function ApprovalTag({ status }) {
-  return <Tag type={APPROVAL_TYPE[status] || 'gray'} size="sm">{APPROVAL_LABEL[status] || status}</Tag>;
-}
-function TypeTag({ type }) {
-  return <Tag type={type === 'internal' ? 'blue' : 'cool-gray'} size="sm">
-    {type === 'internal' ? '⬡ IBM Social League' : '↗ External'}
-  </Tag>;
-}
 
 const PLATFORM_COLOR = {
   YouTube:   { bg: '#fff0f0', color: '#c02020' },
@@ -523,9 +537,10 @@ function InfluencerCard({ influencer, selected, onClick, onEdit }) {
       onClick={onClick}
     >
       <div className="hub-card-top">
+        <CreatorAvatar name={influencer.name} size="sm" />
         <div className="hub-card-info">
           <p className="hub-card-name">{influencer.name}</p>
-          <p className="hub-card-meta">{influencer.persona_group} · {influencer.location}</p>
+          <p className="hub-card-meta">{influencer.persona_group} · {influencer.location} · {fmt(totalFollowers)} followers</p>
         </div>
         <div className="hub-card-top-actions">
           <button
@@ -539,10 +554,11 @@ function InfluencerCard({ influencer, selected, onClick, onEdit }) {
       <div className="hub-card-tags">
         {(influencer.platforms || []).map(p => <PlatformTag key={p.platform} platform={p.platform} />)}
       </div>
-      <div className="hub-card-footer">
-        <span className="hub-muted">{fmt(totalFollowers)} followers</span>
-        {hasContent && <Tag type="blue" size="sm">IBM Content</Tag>}
-      </div>
+      {hasContent && (
+        <div className="hub-card-footer">
+          <Tag type="blue" size="sm">IBM Content</Tag>
+        </div>
+      )}
       {(influencer.events?.length > 0) && (
         <div className="hub-card-event-tags">
           {influencer.events.slice(0, 2).map(e => (
@@ -558,33 +574,6 @@ function InfluencerCard({ influencer, selected, onClick, onEdit }) {
 }
 
 // ── Left Panel ────────────────────────────────────────────────────────────────
-
-const mkItems = (opts) => opts.map(v => ({ id: v, label: v }));
-
-const TYPE_ITEMS    = mkItems(['All Types', 'IBM Social League', 'External']);
-const STATUS_ITEMS  = mkItems(['All Statuses', 'Active', 'Dormant', 'Do Not Use']);
-const PLATFORM_ITEMS= mkItems(['All Platforms', 'YouTube', 'TikTok', 'Instagram', 'X', 'LinkedIn', 'Reddit']);
-const APPROVAL_ITEMS= mkItems(['All Approvals', 'Approved', 'Pending', 'Declined']);
-const PERSONA_ITEMS = mkItems([
-  'All Personas',
-  'Developer / Engineer',
-  'Data & AI Specialist',
-  'Cybersecurity Expert',
-  'C-Suite / Executive',
-  'Entrepreneur / Founder',
-  'Thought Leader (Author, Speaker, Analyst)',
-  'Media / Content Creator (Podcast, YouTube)',
-  'Educator / Researcher',
-  'Sustainability / Climate',
-  'FinTech / Finance',
-]);
-const CONTENT_ITEMS = mkItems(['Any', 'Has IBM Content']);
-
-const CAMPAIGN_TYPE_OPTIONS = [
-  { value: '', text: 'All Campaign Types' },
-  ...['AI for Business','Automation / webMethods','Cross-Geo','Granite / Developer','Hybrid Cloud','Security','Sports Survey 2025','UK Narrative']
-    .map(v => ({ value: v, text: v })),
-];
 
 const EVENT_OPTIONS = [
   { value: '', text: 'All Campaigns' },
@@ -734,6 +723,7 @@ function ContentTab({ influencer }) {
   const [content, setContent] = useState(influencer.content || []);
   const [syncing, setSyncing]   = useState(false);
   const [syncMsg, setSyncMsg]   = useState(null);
+  const [editEntry, setEditEntry] = useState(null);
 
   async function handleSync() {
     setSyncing(true); setSyncMsg(null);
@@ -745,6 +735,19 @@ function ContentTab({ influencer }) {
     } catch {
       setSyncMsg({ kind: 'error', title: 'Sync failed', subtitle: 'Could not reach platform APIs. Try again.' });
     } finally { setSyncing(false); }
+  }
+
+  async function handleEdit(entry, formData) {
+    const r = await fetch(`${API}/content/${entry.id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(formData),
+    });
+    if (r.ok) {
+      const updated = await r.json();
+      setContent(prev => prev.map(c => c.id === updated.id ? updated : c));
+    }
+    setEditEntry(null);
   }
 
   const platforms = [...new Set((influencer.platforms || []).map(p => p.platform))];
@@ -803,6 +806,7 @@ function ContentTab({ influencer }) {
                 <StructuredListCell head>Platform</StructuredListCell>
                 <StructuredListCell head>Campaign</StructuredListCell>
                 <StructuredListCell head>Link</StructuredListCell>
+                <StructuredListCell head></StructuredListCell>
               </StructuredListRow>
             </StructuredListHead>
             <StructuredListBody>
@@ -811,7 +815,12 @@ function ContentTab({ influencer }) {
                   <StructuredListCell><PlatformTag platform={c.platform} /></StructuredListCell>
                   <StructuredListCell>{c.campaign || '—'}</StructuredListCell>
                   <StructuredListCell>
-                    <Link href={c.permalink} target="_blank" rel="noopener noreferrer" style={{ whiteSpace: 'nowrap' }}>View ↗</Link>
+                    {c.permalink
+                      ? <Link href={c.permalink} target="_blank" rel="noopener noreferrer" style={{ whiteSpace: 'nowrap' }}>View ↗</Link>
+                      : '—'}
+                  </StructuredListCell>
+                  <StructuredListCell>
+                    <button className="hub-edit-btn" title="Edit entry" onClick={() => setEditEntry(c)} aria-label="Edit content entry">✎</button>
                   </StructuredListCell>
                 </StructuredListRow>
               ))}
@@ -819,6 +828,7 @@ function ContentTab({ influencer }) {
           </StructuredListWrapper>
         </div>
       )}
+      <ContentEditModal open={!!editEntry} entry={editEntry} onClose={() => setEditEntry(null)} onSave={fd => handleEdit(editEntry, fd)} />
     </div>
   );
 }
@@ -961,6 +971,7 @@ function ProfileView({ influencerId, localOverrides = {}, onEdit }) {
       {/* Dark profile header */}
       <div className="hub-profile-header">
         <div className="hub-profile-header-top">
+          <CreatorAvatar name={influencer.name} size="lg" />
           <div className="hub-profile-header-info">
             <h1 className="hub-profile-name">{influencer.name}</h1>
             <div className="hub-profile-badges">
@@ -1018,6 +1029,7 @@ const FEED_COLS = [
   { key: 'platform',        label: 'Platform' },
   { key: 'campaign',        label: 'Campaign' },
   { key: null,              label: 'Link' },
+  { key: null,              label: '' },
 ];
 
 const BLANK_CONTENT_FORM = { creator_name: '', platform: '', permalink: '', campaign: '' };
@@ -1044,6 +1056,33 @@ function ContentAddModal({ open, onClose, onSave }) {
       </Select>
       <TextInput id="cnt-link"     labelText="Content Link"    value={form.permalink}    onChange={e => set('permalink', e.target.value)}    style={{ marginBottom: '1rem' }} />
       <TextInput id="cnt-campaign" labelText="Campaign"        value={form.campaign}     onChange={e => set('campaign', e.target.value)}     style={{ marginBottom: '1rem' }} />
+    </Modal>
+  );
+}
+
+function ContentEditModal({ open, entry, onClose, onSave }) {
+  const [form, setForm] = useState({ creator_name: '', platform: '', permalink: '', campaign: '' });
+  useEffect(() => {
+    if (open && entry) setForm({
+      creator_name: entry.creator_name || entry.influencer_name || '',
+      platform:     entry.platform || '',
+      permalink:    entry.permalink || '',
+      campaign:     entry.campaign || '',
+    });
+  }, [open, entry]);
+  function set(k, v) { setForm(f => ({ ...f, [k]: v })); }
+  function handleSubmit() { onSave({ ...form }); }
+  return (
+    <Modal open={open} onRequestClose={onClose} onRequestSubmit={handleSubmit}
+      modalHeading="Edit Content Entry" primaryButtonText="Save" secondaryButtonText="Cancel"
+      onSecondarySubmit={onClose} size="sm">
+      <TextInput id="cnt-edit-creator"   labelText="Creator Name"  value={form.creator_name} onChange={e => set('creator_name', e.target.value)} style={{ marginBottom: '1rem' }} />
+      <Select id="cnt-edit-platform" labelText="Platform" value={form.platform} onChange={e => set('platform', e.target.value)} style={{ marginBottom: '1rem' }}>
+        <SelectItem value="" text="— Select —" />
+        {['LinkedIn','YouTube','X','Instagram','TikTok','Reddit','Other'].map(p => <SelectItem key={p} value={p} text={p} />)}
+      </Select>
+      <TextInput id="cnt-edit-link"     labelText="Content Link"    value={form.permalink}    onChange={e => set('permalink', e.target.value)}    style={{ marginBottom: '1rem' }} />
+      <TextInput id="cnt-edit-campaign" labelText="Campaign"        value={form.campaign}     onChange={e => set('campaign', e.target.value)}     style={{ marginBottom: '1rem' }} />
     </Modal>
   );
 }
@@ -1139,12 +1178,13 @@ function ContentCsvUploadModal({ open, onClose, onImport }) {
 
 function GlobalFeed({ onClose, onSelectInfluencer }) {
   const [feed, setFeed]         = useState([]);
-  const [platform, setPlatform] = useState('');
-  const [product, setProduct]   = useState('');
-  const [sortCol, setSortCol]   = useState('post_date');
+  const platform = '';
+  const product  = '';
+  const [sortCol, setSortCol]   = useState('influencer_name');
   const [sortDir, setSortDir]   = useState('desc');
   const [addModal, setAddModal] = useState(false);
   const [csvModal, setCsvModal] = useState(false);
+  const [editEntry, setEditEntry] = useState(null);
 
   function loadFeed() {
     const p = new URLSearchParams();
@@ -1177,6 +1217,24 @@ function GlobalFeed({ onClose, onSelectInfluencer }) {
     setCsvModal(false);
   }
 
+  async function handleEdit(entry, formData) {
+    const r = await fetch(`${API}/content/${entry.id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(formData),
+    });
+    if (r.ok) {
+      const updated = await r.json();
+      setFeed(prev => prev.map(e => e.id === updated.id ? updated : e));
+    }
+    setEditEntry(null);
+  }
+
+  async function handleDelete(id) {
+    await fetch(`${API}/content/${id}`, { method: 'DELETE' });
+    setFeed(prev => prev.filter(e => e.id !== id));
+  }
+
   function handleSort(key) {
     if (!key) return;
     if (sortCol === key) { setSortDir(d => d === 'asc' ? 'desc' : 'asc'); }
@@ -1196,7 +1254,6 @@ function GlobalFeed({ onClose, onSelectInfluencer }) {
       <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: '1.25rem' }}>
         <div>
           <h2 className="hub-heading-lg">IBM Content Feed</h2>
-          <p className="hub-muted">Every IBM-sponsored post, across all creators — {feed.length} posts</p>
         </div>
         <div style={{ display: 'flex', gap: '0.5rem', flexShrink: 0 }}>
           <Button kind="ghost" size="sm" onClick={() => setCsvModal(true)} className="hub-add-btn">↑ Upload CSV</Button>
@@ -1250,6 +1307,12 @@ function GlobalFeed({ onClose, onSelectInfluencer }) {
                         ? <Link href={e.permalink} target="_blank" rel="noopener noreferrer" style={{ whiteSpace: 'nowrap' }}>View ↗</Link>
                         : '—'}
                     </StructuredListCell>
+                    <StructuredListCell>
+                      <div style={{ display: 'flex', gap: '0.25rem' }}>
+                        <button className="hub-edit-btn" title="Edit entry" onClick={() => setEditEntry(e)} aria-label="Edit content entry">✎</button>
+                        <button className="hub-edit-btn hub-edit-btn--danger" title="Delete entry" onClick={() => handleDelete(e.id)} aria-label="Delete content entry">✕</button>
+                      </div>
+                    </StructuredListCell>
                   </StructuredListRow>
                 ))}
               </StructuredListBody>
@@ -1260,6 +1323,7 @@ function GlobalFeed({ onClose, onSelectInfluencer }) {
 
       <ContentAddModal open={addModal} onClose={() => setAddModal(false)} onSave={handleAdd} />
       <ContentCsvUploadModal open={csvModal} onClose={() => setCsvModal(false)} onImport={handleCsvImport} />
+      <ContentEditModal open={!!editEntry} entry={editEntry} onClose={() => setEditEntry(null)} onSave={fd => handleEdit(editEntry, fd)} />
     </div>
   );
 }
@@ -1606,9 +1670,10 @@ function SocialLeagueView() {
               onClick={() => setSelected(m.id)}
             >
               <div className="hub-card-top">
+                <CreatorAvatar name={m.name} size="sm" />
                 <div className="hub-card-info">
                   <p className="hub-card-name">{m.name}</p>
-                  <p className="hub-card-meta">{m.title}</p>
+                  <p className="hub-card-meta">{m.title} · {fmt(m.followers)} followers</p>
                 </div>
                 <div className="hub-card-top-actions">
                   <Tag type={IDENTITY_COLORS[m.member_identity] || 'gray'} size="sm">{m.member_identity}</Tag>
@@ -1620,10 +1685,6 @@ function SocialLeagueView() {
                   >✎</button>
                 </div>
               </div>
-              <div className="hub-card-footer" style={{ marginTop: '0.375rem' }}>
-                <span className="hub-muted">{fmt(m.followers)} followers</span>
-                <span className="hub-muted">{m.location}</span>
-              </div>
             </Tile>
           ))}
         </div>
@@ -1634,6 +1695,7 @@ function SocialLeagueView() {
         <div className="hub-right-panel">
           <div className="hub-profile-header">
             <div className="hub-profile-header-top">
+              <CreatorAvatar name={selectedMember.name} size="lg" />
               <div className="hub-profile-header-info">
                 <h1 className="hub-profile-name">{selectedMember.name}</h1>
                 <div className="hub-profile-badges">
@@ -1713,6 +1775,202 @@ function SocialLeagueView() {
         onImport={handleCsvImport}
       />
     </div>
+  );
+}
+
+// ── Chat Bot ──────────────────────────────────────────────────────────────────
+
+const CHAT_SUGGESTIONS = [
+  'Find active external creators in EMEA',
+  'Who worked on IBM Think with a score above 8?',
+  'Show YouTube creators with IBM content',
+  'How many influencers are in the database?',
+];
+
+function ChatBot({ onSelectInfluencer }) {
+  const [open, setOpen]       = useState(false);
+  const [greetingDismissed, setGreetingDismissed] = useState(false);
+  const [messages, setMessages] = useState([
+    { role: 'bot', text: 'Hi! I\'m powered by AI and have full access to the influencer database. Ask me anything — find creators by location, event, platform, score, or ask general questions like "how many active influencers do we have?"' },
+  ]);
+  const [input, setInput]     = useState('');
+  const [loading, setLoading] = useState(false);
+  const bottomRef = useRef(null);
+  const inputRef  = useRef(null);
+
+  useEffect(() => {
+    if (open) {
+      setGreetingDismissed(true);
+      setTimeout(() => inputRef.current?.focus(), 80);
+    }
+  }, [open]);
+
+  useEffect(() => {
+    bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messages]);
+
+  async function send(text) {
+    const msg = (text || input).trim();
+    if (!msg) return;
+    setInput('');
+    setMessages(prev => [...prev, { role: 'user', text: msg }]);
+    setLoading(true);
+    try {
+      const r = await fetch(`${API}/chat`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message: msg }),
+      });
+      const data = await r.json();
+      setMessages(prev => [
+        ...prev,
+        { role: 'bot', text: data.reply, results: data.results || [] },
+      ]);
+    } catch {
+      setMessages(prev => [...prev, { role: 'bot', text: 'Something went wrong. Please try again.' }]);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  function handleKey(e) {
+    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); }
+  }
+
+  return (
+    <>
+      {/* Greeting bubble */}
+      {!open && !greetingDismissed && (
+        <div className="hub-chat-greeting" role="status" aria-live="polite">
+          <p className="hub-chat-greeting-text">Hi there 👋! Let me know how I can be of assistance!</p>
+          <button
+            className="hub-chat-greeting-dismiss"
+            onClick={() => setGreetingDismissed(true)}
+            aria-label="Dismiss greeting"
+          >
+            <svg viewBox="0 0 16 16" width="12" height="12" fill="currentColor" aria-hidden="true">
+              <path d="M12 4.7L11.3 4 8 7.3 4.7 4 4 4.7 7.3 8 4 11.3l.7.7L8 8.7l3.3 3.3.7-.7L8.7 8z"/>
+            </svg>
+          </button>
+        </div>
+      )}
+
+      {/* FAB trigger */}
+      <button
+        className={`hub-chat-fab ${open ? 'hub-chat-fab--open' : ''}`}
+        onClick={() => setOpen(v => !v)}
+        aria-label={open ? 'Close assistant' : 'Open creator search assistant'}
+        title={open ? 'Close' : 'Creator search assistant'}
+      >
+        {open
+          ? /* close X */
+            <svg viewBox="0 0 16 16" width="20" height="20" fill="currentColor" aria-hidden="true">
+              <path d="M12 4.7L11.3 4 8 7.3 4.7 4 4 4.7 7.3 8 4 11.3l.7.7L8 8.7l3.3 3.3.7-.7L8.7 8z"/>
+            </svg>
+          : /* IBM bee */
+            <svg viewBox="0 0 32 32" width="22" height="22" fill="currentColor" aria-hidden="true">
+              <path d="M27.299,28.258c-0.653,0-1.314-0.155-1.927-0.484c-1.535-0.823-2.362-2.52-2.059-4.22l1.498-8.146c0.026-0.14,0.132-0.251,0.27-0.285c0.139-0.033,0.283,0.017,0.37,0.129l5.087,6.581c0.959,1.255,1.087,2.955,0.328,4.334C30.132,27.501,28.737,28.258,27.299,28.258z M25.374,16.33l-1.335,7.263c-0.001,0.002-0.017,0.088-0.018,0.09c-0.248,1.391,0.431,2.78,1.69,3.456l0,0c1.618,0.868,3.646,0.276,4.523-1.319c0.622-1.129,0.517-2.521-0.269-3.548L25.374,16.33z M14.611,25.505c-0.84,0-1.683-0.209-2.452-0.632c-1.688-0.926-2.68-2.688-2.589-4.598c0.006-0.124,0.075-0.236,0.184-0.297c0.109-0.059,0.24-0.06,0.349-0.001l7.339,4.03c0.11,0.061,0.181,0.173,0.187,0.299c0.006,0.125-0.054,0.244-0.157,0.314C16.606,25.209,15.61,25.505,14.611,25.505z M10.302,20.908c0.128,1.396,0.937,2.639,2.204,3.334l0,0c1.267,0.696,2.765,0.72,4.033,0.091L10.302,20.908z M18.822,22.913c-0.059,0-0.118-0.015-0.173-0.045l-8.19-4.496c-0.084-0.046-0.146-0.124-0.173-0.217s-0.015-0.191,0.033-0.275l1.144-2.031c0.096-0.171,0.312-0.233,0.487-0.139l8.189,4.496c0.085,0.046,0.146,0.124,0.173,0.217c0.027,0.092,0.016,0.191-0.032,0.275l-1.144,2.031C19.07,22.847,18.948,22.913,18.822,22.913z M11.125,17.916l7.559,4.149l0.79-1.403l-7.559-4.149L11.125,17.916z M21.094,18.879c-0.059,0-0.118-0.015-0.173-0.045l-8.19-4.497c-0.084-0.046-0.146-0.124-0.173-0.217c-0.026-0.092-0.015-0.191,0.033-0.275l1.144-2.031c0.097-0.171,0.312-0.235,0.487-0.139l8.189,4.496c0.085,0.046,0.146,0.124,0.173,0.217c0.027,0.092,0.016,0.191-0.032,0.275l-1.144,2.031C21.342,18.812,21.22,18.879,21.094,18.879z M13.396,13.881l7.559,4.15l0.79-1.403l-7.558-4.15L13.396,13.881z M4.694,15.845c-0.687,0-1.376-0.172-2.002-0.524c-0.946-0.531-1.624-1.395-1.909-2.433C0.5,11.859,0.638,10.782,1.172,9.854c0.783-1.361,2.314-2.15,3.892-2.007L13.41,8.64c0.142,0.014,0.263,0.11,0.308,0.246c0.045,0.136,0.005,0.286-0.102,0.381L7.469,14.76c-0.001,0.001-0.067,0.06-0.069,0.061C6.636,15.497,5.669,15.845,4.694,15.845z M4.697,8.551c-1.191,0-2.307,0.631-2.901,1.663c-0.438,0.759-0.551,1.641-0.319,2.483c0.234,0.851,0.791,1.56,1.568,1.996l0,0c1.249,0.703,2.808,0.538,3.876-0.41l5.601-5.004L4.997,8.564C4.897,8.555,4.796,8.551,4.697,8.551z M22.941,14.61c-0.06,0-0.119-0.015-0.173-0.044l-7.341-4.03c-0.11-0.06-0.18-0.173-0.186-0.298s0.053-0.245,0.157-0.315c1.589-1.081,3.625-1.179,5.312-0.252l0,0c1.688,0.927,2.681,2.688,2.59,4.597c-0.006,0.124-0.075,0.236-0.184,0.297C23.062,14.595,23.002,14.61,22.941,14.61z M16.331,10.21l6.237,3.425c-0.128-1.395-0.937-2.638-2.203-3.334C19.098,9.607,17.601,9.583,16.331,10.21z M24.816,10.698c-0.329,0-0.662-0.08-0.97-0.249c-0.47-0.257-0.81-0.682-0.956-1.194c-0.145-0.509-0.082-1.043,0.179-1.506c0.537-0.952,1.756-1.298,2.723-0.768c0.47,0.258,0.81,0.682,0.956,1.195c0.145,0.508,0.082,1.042-0.179,1.504l0,0C26.204,10.331,25.521,10.698,24.816,10.698z M24.821,7.452c-0.452,0-0.891,0.235-1.125,0.651c-0.165,0.293-0.205,0.632-0.113,0.955c0.094,0.326,0.311,0.596,0.61,0.76c0.622,0.343,1.405,0.121,1.749-0.49l0,0c0.165-0.293,0.205-0.632,0.113-0.954c-0.093-0.326-0.31-0.596-0.61-0.761C25.247,7.504,25.032,7.452,24.821,7.452z M19.367,7.707c-0.328,0-0.661-0.08-0.968-0.249c-0.471-0.258-0.811-0.682-0.957-1.194c-0.145-0.509-0.082-1.043,0.179-1.506c0.537-0.953,1.759-1.298,2.723-0.768c0.471,0.258,0.811,0.683,0.957,1.195c0.145,0.509,0.081,1.043-0.179,1.504C20.756,7.34,20.071,7.707,19.367,7.707z M19.373,4.461c-0.452,0-0.891,0.235-1.125,0.651c-0.165,0.293-0.205,0.632-0.113,0.955c0.094,0.326,0.311,0.596,0.61,0.761c0.623,0.341,1.406,0.12,1.75-0.491c0.165-0.292,0.205-0.631,0.113-0.953c-0.094-0.326-0.311-0.597-0.61-0.762C19.8,4.513,19.585,4.461,19.373,4.461z"/>
+            </svg>
+        }
+      </button>
+
+      {/* Panel */}
+      {open && (
+        <div className="hub-chat-panel" role="dialog" aria-label="Creator search assistant">
+          {/* Header */}
+          <div className="hub-chat-header">
+            <div className="hub-chat-header-icon" aria-hidden="true">
+              <svg viewBox="0 0 32 32" width="16" height="16" fill="currentColor">
+                <path d="M27.299,28.258c-0.653,0-1.314-0.155-1.927-0.484c-1.535-0.823-2.362-2.52-2.059-4.22l1.498-8.146c0.026-0.14,0.132-0.251,0.27-0.285c0.139-0.033,0.283,0.017,0.37,0.129l5.087,6.581c0.959,1.255,1.087,2.955,0.328,4.334C30.132,27.501,28.737,28.258,27.299,28.258z M25.374,16.33l-1.335,7.263c-0.001,0.002-0.017,0.088-0.018,0.09c-0.248,1.391,0.431,2.78,1.69,3.456l0,0c1.618,0.868,3.646,0.276,4.523-1.319c0.622-1.129,0.517-2.521-0.269-3.548L25.374,16.33z M14.611,25.505c-0.84,0-1.683-0.209-2.452-0.632c-1.688-0.926-2.68-2.688-2.589-4.598c0.006-0.124,0.075-0.236,0.184-0.297c0.109-0.059,0.24-0.06,0.349-0.001l7.339,4.03c0.11,0.061,0.181,0.173,0.187,0.299c0.006,0.125-0.054,0.244-0.157,0.314C16.606,25.209,15.61,25.505,14.611,25.505z M10.302,20.908c0.128,1.396,0.937,2.639,2.204,3.334l0,0c1.267,0.696,2.765,0.72,4.033,0.091L10.302,20.908z M18.822,22.913c-0.059,0-0.118-0.015-0.173-0.045l-8.19-4.496c-0.084-0.046-0.146-0.124-0.173-0.217s-0.015-0.191,0.033-0.275l1.144-2.031c0.096-0.171,0.312-0.233,0.487-0.139l8.189,4.496c0.085,0.046,0.146,0.124,0.173,0.217c0.027,0.092,0.016,0.191-0.032,0.275l-1.144,2.031C19.07,22.847,18.948,22.913,18.822,22.913z M11.125,17.916l7.559,4.149l0.79-1.403l-7.559-4.149L11.125,17.916z M21.094,18.879c-0.059,0-0.118-0.015-0.173-0.045l-8.19-4.497c-0.084-0.046-0.146-0.124-0.173-0.217c-0.026-0.092-0.015-0.191,0.033-0.275l1.144-2.031c0.097-0.171,0.312-0.235,0.487-0.139l8.189,4.496c0.085,0.046,0.146,0.124,0.173,0.217c0.027,0.092,0.016,0.191-0.032,0.275l-1.144,2.031C21.342,18.812,21.22,18.879,21.094,18.879z M13.396,13.881l7.559,4.15l0.79-1.403l-7.558-4.15L13.396,13.881z M4.694,15.845c-0.687,0-1.376-0.172-2.002-0.524c-0.946-0.531-1.624-1.395-1.909-2.433C0.5,11.859,0.638,10.782,1.172,9.854c0.783-1.361,2.314-2.15,3.892-2.007L13.41,8.64c0.142,0.014,0.263,0.11,0.308,0.246c0.045,0.136,0.005,0.286-0.102,0.381L7.469,14.76c-0.001,0.001-0.067,0.06-0.069,0.061C6.636,15.497,5.669,15.845,4.694,15.845z M4.697,8.551c-1.191,0-2.307,0.631-2.901,1.663c-0.438,0.759-0.551,1.641-0.319,2.483c0.234,0.851,0.791,1.56,1.568,1.996l0,0c1.249,0.703,2.808,0.538,3.876-0.41l5.601-5.004L4.997,8.564C4.897,8.555,4.796,8.551,4.697,8.551z M22.941,14.61c-0.06,0-0.119-0.015-0.173-0.044l-7.341-4.03c-0.11-0.06-0.18-0.173-0.186-0.298s0.053-0.245,0.157-0.315c1.589-1.081,3.625-1.179,5.312-0.252l0,0c1.688,0.927,2.681,2.688,2.59,4.597c-0.006,0.124-0.075,0.236-0.184,0.297C23.062,14.595,23.002,14.61,22.941,14.61z M16.331,10.21l6.237,3.425c-0.128-1.395-0.937-2.638-2.203-3.334C19.098,9.607,17.601,9.583,16.331,10.21z M24.816,10.698c-0.329,0-0.662-0.08-0.97-0.249c-0.47-0.257-0.81-0.682-0.956-1.194c-0.145-0.509-0.082-1.043,0.179-1.506c0.537-0.952,1.756-1.298,2.723-0.768c0.47,0.258,0.81,0.682,0.956,1.195c0.145,0.508,0.082,1.042-0.179,1.504l0,0C26.204,10.331,25.521,10.698,24.816,10.698z M24.821,7.452c-0.452,0-0.891,0.235-1.125,0.651c-0.165,0.293-0.205,0.632-0.113,0.955c0.094,0.326,0.311,0.596,0.61,0.76c0.622,0.343,1.405,0.121,1.749-0.49l0,0c0.165-0.293,0.205-0.632,0.113-0.954c-0.093-0.326-0.31-0.596-0.61-0.761C25.247,7.504,25.032,7.452,24.821,7.452z M19.367,7.707c-0.328,0-0.661-0.08-0.968-0.249c-0.471-0.258-0.811-0.682-0.957-1.194c-0.145-0.509-0.082-1.043,0.179-1.506c0.537-0.953,1.759-1.298,2.723-0.768c0.471,0.258,0.811,0.683,0.957,1.195c0.145,0.509,0.081,1.043-0.179,1.504C20.756,7.34,20.071,7.707,19.367,7.707z M19.373,4.461c-0.452,0-0.891,0.235-1.125,0.651c-0.165,0.293-0.205,0.632-0.113,0.955c0.094,0.326,0.311,0.596,0.61,0.761c0.623,0.341,1.406,0.12,1.75-0.491c0.165-0.292,0.205-0.631,0.113-0.953c-0.094-0.326-0.311-0.597-0.61-0.762C19.8,4.513,19.585,4.461,19.373,4.461z"/>
+              </svg>
+            </div>
+            <div>
+              <p className="hub-chat-title">Creator Assistant</p>
+              <p className="hub-chat-subtitle">AI-powered · Ask anything about your influencers</p>
+            </div>
+            <button className="hub-chat-close" onClick={() => setOpen(false)} aria-label="Close">
+              <svg viewBox="0 0 16 16" width="16" height="16" fill="currentColor" aria-hidden="true">
+                <path d="M12 4.7L11.3 4 8 7.3 4.7 4 4 4.7 7.3 8 4 11.3l.7.7L8 8.7l3.3 3.3.7-.7L8.7 8z"/>
+              </svg>
+            </button>
+          </div>
+
+          {/* Messages */}
+          <div className="hub-chat-messages">
+            {messages.map((m, i) => (
+              <div key={i} className={`hub-chat-msg hub-chat-msg--${m.role}`}>
+                <p className="hub-chat-msg-text">{m.text}</p>
+                {m.results && m.results.length > 0 && (
+                  <div className="hub-chat-results">
+                    {m.results.slice(0, 8).map(inf => (
+                      <button
+                        key={inf.id}
+                        className="hub-chat-result-card"
+                        onClick={() => { onSelectInfluencer(inf.id); setOpen(false); }}
+                      >
+                        <CreatorAvatar name={inf.name} size="sm" />
+                        <div className="hub-chat-result-info">
+                          <p className="hub-chat-result-name">{inf.name}</p>
+                          <p className="hub-chat-result-meta">
+                            {inf.persona_group}
+                            {inf.location ? ` · ${inf.location}` : ''}
+                          </p>
+                        </div>
+                        <svg className="hub-chat-result-arrow" viewBox="0 0 16 16" width="12" height="12" fill="currentColor" aria-hidden="true">
+                          <path d="M11.293 8L6 2.707 6.707 2l6 6-6 6L6 13.293z"/>
+                        </svg>
+                      </button>
+                    ))}
+                    {m.results.length > 8 && (
+                      <p className="hub-chat-more">+{m.results.length - 8} more — refine your query to narrow results</p>
+                    )}
+                  </div>
+                )}
+              </div>
+            ))}
+            {loading && (
+              <div className="hub-chat-msg hub-chat-msg--bot">
+                <div className="hub-chat-typing">
+                  <span/><span/><span/>
+                </div>
+              </div>
+            )}
+            <div ref={bottomRef} />
+          </div>
+
+          {/* Suggested prompts — always visible */}
+          <div className="hub-chat-suggestions">
+            {CHAT_SUGGESTIONS.map(s => (
+              <button key={s} className="hub-chat-suggestion" onClick={() => send(s)}>{s}</button>
+            ))}
+          </div>
+
+          {/* Input */}
+          <div className="hub-chat-input-row">
+            <input
+              ref={inputRef}
+              className="hub-chat-input"
+              placeholder="Ask me to find creators…"
+              value={input}
+              onChange={e => setInput(e.target.value)}
+              onKeyDown={handleKey}
+              disabled={loading}
+              aria-label="Chat message input"
+            />
+            <button
+              className="hub-chat-send"
+              onClick={() => send()}
+              disabled={loading || !input.trim()}
+              aria-label="Send message"
+            >
+              <svg viewBox="0 0 16 16" width="16" height="16" fill="currentColor" aria-hidden="true">
+                <path d="M13.5 8l-11 6V9.5l8-1.5-8-1.5V2l11 6z"/>
+              </svg>
+            </button>
+          </div>
+        </div>
+      )}
+    </>
   );
 }
 
@@ -1822,6 +2080,8 @@ export default function App() {
       if (r.ok) {
         const updated = await r.json();
         setList(prev => prev.map(i => i.id === updated.id ? updated : i));
+        // Bump localOverrides so ProfileView re-fetches the saved data
+        setLocalOverrides(prev => ({ ...prev, [updated.id]: {} }));
       }
     } else {
       // Add: persist to backend
@@ -1887,6 +2147,13 @@ export default function App() {
         open={csvModal}
         onClose={handleCloseCsv}
         onImport={handleCsvImport}
+      />
+      <ChatBot
+        onSelectInfluencer={(id) => {
+          setSelected(id);
+          setShowFeed(false);
+          setShowSocialLeague(false);
+        }}
       />
     </>
   );
