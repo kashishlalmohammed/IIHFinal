@@ -346,11 +346,22 @@ function parseCsv(text) {
   const headerIdx = rows.findIndex(isHeaderRow);
   if (headerIdx === -1 || headerIdx >= rows.length - 1) return [];
   const headers = rows[headerIdx].map(h => h.toLowerCase().replace(/\s+/g, '_'));
+  // Determine which column index holds the influencer/creator name
+  const nameColIdx = headers.findIndex(h => h === 'influencer' || h === 'name' || h === 'creator_name');
   return rows.slice(headerIdx + 1).map(cols => {
     const row = {};
     headers.forEach((h, i) => { row[h] = cols[i] || ''; });
     return row;
-  }).filter(r => (r.name && r.name.trim()) || (r.creator_name && r.creator_name.trim()));
+  }).filter(r => {
+    // Skip rows where the name column is empty or all data cols are empty (section label rows)
+    const nameVal = nameColIdx >= 0 ? (rows[0][nameColIdx] || '') : '';
+    const rowName = r['influencer'] || r['name'] || r['creator_name'] || '';
+    if (!rowName.trim()) return false;
+    // Skip section label rows: only first cell has a value, rest are empty
+    const vals = headers.map(h => (r[h] || '').trim());
+    const nonEmptyCount = vals.filter(v => v).length;
+    return nonEmptyCount > 1;
+  });
 }
 
 // Normalise a CSV header key: lowercase, collapse spaces/special chars to underscores
