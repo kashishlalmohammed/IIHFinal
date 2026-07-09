@@ -699,10 +699,10 @@ function LeftPanel({ influencers, selectedId, onSelect, onSearch, onFilter, filt
             onChange={v => onFilter('campaign_type', v)} />
           <FilterSelect label="Geo" value={filters.location} options={[
             { value: '', text: 'All Geos' },
-            { value: 'Americas', text: 'Americas' },
-            { value: 'UK', text: 'UK' },
-            { value: 'EMEA', text: 'EMEA' },
-            { value: 'India', text: 'India' },
+            { value: 'americas', text: 'Americas (incl. US, USA)' },
+            { value: 'uk', text: 'UK (incl. UKI)' },
+            { value: 'emea', text: 'EMEA' },
+            { value: 'india', text: 'India' },
           ]} onChange={v => onFilter('location', v)} />
         </div>
 

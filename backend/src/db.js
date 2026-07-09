@@ -254,8 +254,30 @@ function buildListWhere(filters = {}) {
     params.push(filters.campaign_type);
   }
   if (filters.location) {
-    clauses.push('LOWER(COALESCE(i.location, \'\')) LIKE ?');
-    params.push(`%${filters.location.toLowerCase()}%`);
+    // Expand location aliases so Americas matches US/USA/UKI etc.
+    const locLower = filters.location.toLowerCase();
+    const GEO_ALIASES_FILTER = {
+      americas: ['americas', 'us', 'usa', 'united states', 'canada', 'brazil', 'mexico', 'latin america', 'north america'],
+      uk:       ['uk', 'uki', 'united kingdom', 'britain', 'england', 'scotland', 'wales', 'ireland'],
+      emea:     ['emea', 'europe', 'germany', 'france', 'spain', 'italy', 'netherlands', 'middle east', 'africa'],
+      india:    ['india', 'bangalore', 'mumbai', 'delhi'],
+    };
+    // Find which canonical group this maps to
+    let patterns = null;
+    for (const [group, aliases] of Object.entries(GEO_ALIASES_FILTER)) {
+      if (aliases.includes(locLower) || locLower === group) {
+        patterns = aliases;
+        break;
+      }
+    }
+    if (patterns) {
+      const orClauses = patterns.map(() => 'LOWER(COALESCE(i.location, \'\')) LIKE ?').join(' OR ');
+      clauses.push(`(${orClauses})`);
+      params.push(...patterns.map(p => `%${p}%`));
+    } else {
+      clauses.push('LOWER(COALESCE(i.location, \'\')) LIKE ?');
+      params.push(`%${locLower}%`);
+    }
   }
   if (filters.event) {
     const events = Array.isArray(filters.event) ? filters.event : String(filters.event).split(',').filter(Boolean);
@@ -900,10 +922,15 @@ const GEO_ALIASES = {
   'north america':  'americas',
   'latin america':  'americas',
   'brazil':         'americas',
+  'mexico':         'americas',
   'uk':             'uk',
+  'uki':            'uk',
   'united kingdom': 'uk',
   'britain':        'uk',
   'england':        'uk',
+  'scotland':       'uk',
+  'wales':          'uk',
+  'ireland':        'uk',
   'emea':           'emea',
   'europe':         'emea',
   'germany':        'emea',
