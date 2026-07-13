@@ -672,6 +672,38 @@ function FilterSelect({ label, value, options, onChange }) {
   );
 }
 
+function exportToCsv(influencers) {
+  const headers = ['Name', 'Type', 'Persona', 'Location', 'Status', 'Approval Status', 'Platforms', 'Total Followers', 'Score', 'Campaigns', 'Bio'];
+  const rows = influencers.map(inf => {
+    const platforms = (inf.platforms || []).map(p => `${p.platform}${p.follower_count ? ` (${p.follower_count.toLocaleString()})` : ''}`).join(' | ');
+    const totalFollowers = (inf.platforms || []).reduce((s, p) => s + (p.follower_count || 0), 0);
+    const campaigns = (inf.campaign_types || []).join(' | ');
+    const score = inf.score?.composite ?? '';
+    const bio = (inf.bio || '').replace(/"/g, '""').replace(/\n/g, ' ');
+    return [
+      `"${inf.name || ''}"`,
+      `"${inf.type || ''}"`,
+      `"${inf.persona_group || ''}"`,
+      `"${inf.location || ''}"`,
+      `"${inf.status || ''}"`,
+      `"${inf.approval_status || ''}"`,
+      `"${platforms}"`,
+      totalFollowers,
+      score,
+      `"${campaigns}"`,
+      `"${bio}"`,
+    ].join(',');
+  });
+  const csv = [headers.join(','), ...rows].join('\n');
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `influencers-export-${new Date().toISOString().slice(0, 10)}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
 function LeftPanel({ influencers, selectedId, onSelect, onSearch, onFilter, filters, searchQuery, onViewFeed, onAdd, onEdit, onUploadCsv, campaignOptions }) {
   return (
     <div className="hub-left-panel">
@@ -714,6 +746,7 @@ function LeftPanel({ influencers, selectedId, onSelect, onSearch, onFilter, filt
       <div className="hub-list-header">
         <p className="hub-list-count">{influencers.length} influencer{influencers.length !== 1 ? 's' : ''}</p>
         <div className="hub-list-header-actions">
+          <Button kind="ghost" size="sm" onClick={() => exportToCsv(influencers)} className="hub-add-btn" title="Export current list to CSV">↓ Export CSV</Button>
           <Button kind="ghost" size="sm" onClick={onUploadCsv} className="hub-add-btn">↑ Upload CSV</Button>
           <Button kind="primary" size="sm" onClick={onAdd} className="hub-add-btn">+ Add</Button>
         </div>
