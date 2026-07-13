@@ -2043,6 +2043,13 @@ function ChatBot({ onSelectInfluencer }) {
                         </svg>
                       </button>
                     ))}
+                    <button
+                      className="hub-chat-export-btn"
+                      onClick={() => exportToCsv(m.results)}
+                      title="Export these results to CSV"
+                    >
+                      ↓ Export {m.results.length} creator{m.results.length !== 1 ? 's' : ''} to CSV
+                    </button>
                     {m.results.length > 8 && (
                       <p className="hub-chat-more">+{m.results.length - 8} more — refine your query to narrow results</p>
                     )}
