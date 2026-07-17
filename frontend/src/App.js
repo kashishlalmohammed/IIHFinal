@@ -24,7 +24,9 @@ import {
 } from '@carbon/react';
 
 // Backend runs on :3001
-const API = 'http://localhost:3001/api';
+const API = process.env.NODE_ENV === 'production'
+  ? '/api'
+  : 'http://localhost:3001/api';
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
