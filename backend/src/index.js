@@ -31,8 +31,6 @@ const {
   getCampaignTypes,
 } = require('./db');
 
-const { aiChatQuery } = require('./ai');
-
 const app = express();
 app.use(cors());
 app.use(express.json());
@@ -267,19 +265,6 @@ app.post('/api/search', (req, res) => {
   res.json(results.length > 0 ? results : listInfluencers().map(({ rate, ...rest }) => rest));
 });
 
-app.post('/api/chat', async (req, res) => {
-  const { message, history } = req.body;
-  if (!message || !String(message).trim()) {
-    return res.status(400).json({ error: 'message is required' });
-  }
-  try {
-    const result = await aiChatQuery(String(message).trim(), Array.isArray(history) ? history : []);
-    res.json(result);
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
-
 // Serve static frontend AFTER all API routes so the wildcard never intercepts API calls
 app.use(express.static(uiBuild));
 app.get('/{*splat}', (req, res) => {
@@ -287,6 +272,6 @@ app.get('/{*splat}', (req, res) => {
 });
 
 const PORT = process.env.PORT || 3001;
-app.listen(PORT, () => {
-  console.log(`IBM Influencer Hub running on http://localhost:${PORT}`);
+app.listen(PORT, '127.0.0.1', () => {
+  console.log(`IBM Influencer Hub running on http://127.0.0.1:${PORT}`);
 });

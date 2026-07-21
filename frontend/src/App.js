@@ -2366,13 +2366,6 @@ export default function App() {
         onClose={handleCloseCsv}
         onImport={handleCsvImport}
       />
-      <ChatBot
-        onSelectInfluencer={(id) => {
-          setSelected(id);
-          setShowFeed(false);
-          setShowSocialLeague(false);
-        }}
-      />
     </>
   );
 }
