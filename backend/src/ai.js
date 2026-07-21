@@ -23,15 +23,15 @@ const TOOLS = [
       parameters: {
         type: 'object',
         properties: {
-          type: { type: 'string', enum: ['external', 'internal'], description: 'Influencer type' },
-          status: { type: 'string', enum: ['active', 'inactive', 'dormant', 'declined'], description: 'Relationship status' },
-          approval_status: { type: 'string', enum: ['approved', 'pending', 'rejected'], description: 'Approval status' },
+          type: { type: 'string', enum: ['external', 'internal'], description: 'Influencer type. Use "external" for paid/sponsored creators, "internal" for IBM employees.' },
+          status: { type: 'string', enum: ['active', 'inactive', 'dormant', 'declined'], description: 'Relationship status — whether the influencer is currently active/available. Use "active" to filter for active influencers.' },
+          approval_status: { type: 'string', enum: ['approved', 'pending', 'rejected'], description: 'Internal approval state — only use when the user specifically asks about approved/pending/rejected profiles. Do NOT use this for "active" — use the status field instead.' },
           platform: { type: 'string', description: 'Social platform, e.g. YouTube, LinkedIn, TikTok' },
           persona_group: { type: 'string', description: 'Persona group, e.g. "Developer / Engineer", "C-Suite / Executive"' },
           location: { type: 'string', description: 'Geographic region, e.g. americas, emea, uk, india' },
           event: { type: 'string', description: 'Campaign event, e.g. "IBM Think", "Wimbledon", "US Open"' },
           campaign_type: { type: 'string', description: 'Campaign type, e.g. "AI for Business", "Granite / Developer"' },
-          has_content: { type: 'string', enum: ['true'], description: 'Set to "true" to only return creators with IBM content' },
+          has_content: { type: 'string', description: 'Pass the string "true" to only return creators who have IBM content posted' },
           q: { type: 'string', description: 'Keyword search within name, bio, platforms' },
         },
         required: [],
@@ -281,12 +281,13 @@ async function aiChatQuery(message, history = []) {
     { role: 'user', content: message },
   ];
 
+  let toolCallRetries = 0;
   // Agentic loop: allow up to 5 tool-call rounds
   for (let round = 0; round < 5; round++) {
     let response;
     try {
       response = await groq.chat.completions.create({
-        model: 'llama-3.1-8b-instant',
+        model: 'llama-3.3-70b-versatile',
         messages,
         tools: TOOLS,
         tool_choice: 'auto',
@@ -298,8 +299,17 @@ async function aiChatQuery(message, history = []) {
       if (err.status === 429) {
         return { reply: "⚠️ The AI assistant has hit its daily token limit and will be available again in a few hours. In the meantime, you can use the search bar and filters to browse the influencer database.", results: [], filters: {} };
       }
+      // Groq occasionally fails to parse its own tool-call output (tool_use_failed 400).
+      // Retry the same round (up to 2 times) with a nudge to use correct JSON tool syntax.
+      if (err.status === 400 && err.message?.includes('tool') && toolCallRetries < 2) {
+        toolCallRetries++;
+        messages.push({ role: 'user', content: 'Please call the appropriate tool using proper JSON format to answer my question.' });
+        round--;  // redo this round
+        continue;
+      }
       throw err;
     }
+    toolCallRetries = 0; // reset on success
 
     const choice = response.choices[0];
     const assistantMsg = choice.message;
