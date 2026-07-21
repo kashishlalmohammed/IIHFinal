@@ -8,7 +8,7 @@ import {
   // Layout
   Content,
   // Tiles
-  Tile,
+  Tile, ClickableTile,
   // Inputs
   Search, Button, Tag, Modal, TextInput, TextArea, Select, SelectItem,
   FileUploader,
@@ -21,7 +21,18 @@ import {
   StructuredListCell, StructuredListBody,
   // Misc
   Loading, Link,
+  // Icon button
+  IconButton,
 } from '@carbon/react';
+
+import {
+  Edit,
+  TrashCan,
+  Close,
+  SendAlt,
+  DocumentImport,
+  ArrowRight,
+} from '@carbon/icons-react';
 
 // Backend runs on :3001
 const API = process.env.NODE_ENV === 'production'
@@ -87,34 +98,20 @@ function CreatorAvatar({ name, size = 'sm' }) {
   );
 }
 
-// ── Status / Approval / Type badges as Carbon Tags ────────────────────────────
+// ── Platform tags as Carbon Tags ──────────────────────────────────────────────
 
-const PLATFORM_COLOR = {
-  YouTube:   { bg: '#fff0f0', color: '#c02020' },
-  TikTok:    { bg: '#f3f0ff', color: '#6929c4' },
-  Instagram: { bg: '#fff0f7', color: '#9f1853' },
-  X:         { bg: '#f4f4f4', color: '#393939' },
-  LinkedIn:  { bg: '#edf5ff', color: '#0043ce' },
-  Reddit:    { bg: '#fff3ee', color: '#b23b00' },
+const PLATFORM_TAG_TYPE = {
+  YouTube:   'red',
+  TikTok:    'purple',
+  Instagram: 'magenta',
+  X:         'cool-gray',
+  LinkedIn:  'blue',
+  Reddit:    'orange',
 };
+
 function PlatformTag({ platform, size = 'sm' }) {
-  const c = PLATFORM_COLOR[platform] || { bg: '#f4f4f4', color: '#525252' };
-  const isLg = size === 'lg';
-  return (
-    <span style={{
-      display: 'inline-block',
-      background: c.bg, color: c.color,
-      fontSize: isLg ? '0.75rem' : '0.6875rem',
-      fontWeight: 500,
-      padding: isLg ? '0.1875rem 0.625rem' : '0.125rem 0.4375rem',
-      borderRadius: '0.75rem',
-      whiteSpace: 'nowrap',
-      lineHeight: 1.5,
-      fontFamily: 'inherit',
-    }}>
-      {platform}
-    </span>
-  );
+  const type = PLATFORM_TAG_TYPE[platform] || 'gray';
+  return <Tag type={type} size={size}>{platform}</Tag>;
 }
 
 // ── Stats Bar using Carbon Tiles ──────────────────────────────────────────────
@@ -262,7 +259,9 @@ function InfluencerFormModal({ open, influencer, onClose, onSave, onDelete }) {
               placeholder="e.g. 12500"
             />
             {form.platforms.length > 1 && (
-              <button className="hub-platform-remove" onClick={() => removePlatform(i)} aria-label="Remove platform">✕</button>
+              <IconButton kind="ghost" size="sm" label="Remove platform" onClick={() => removePlatform(i)}>
+                <Close size={16} />
+              </IconButton>
             )}
           </div>
         ))}
@@ -530,13 +529,13 @@ function CsvUploadModal({ open, onClose, onImport }) {
       onSecondarySubmit={onClose}
       size="md"
     >
-      <p style={{ marginBottom: '0.5rem', fontSize: '0.875rem', color: '#57606a' }}>
+      <p style={{ marginBottom: '0.5rem', fontSize: '0.875rem', color: 'var(--cds-text-secondary)' }}>
         The <strong>filename</strong> will be used as the campaign name. Existing influencers matched by name will be updated, not duplicated. Two formats accepted:
       </p>
-      <p style={{ marginBottom: '0.25rem', fontSize: '0.8125rem', fontFamily: 'monospace', background: '#f7f8fa', padding: '0.5rem', borderRadius: '4px', wordBreak: 'break-all' }}>
+      <p style={{ marginBottom: '0.25rem', fontSize: '0.8125rem', fontFamily: 'monospace', background: 'var(--cds-layer-01)', padding: '0.5rem', borderRadius: '2px', wordBreak: 'break-all' }}>
         <strong>Agency template:</strong> Influencer, Location, About/Bio, Rationale, YouTube Link, YouTube Followers, LinkedIn Link, LinkedIn Followers, …
       </p>
-      <p style={{ marginBottom: '1rem', fontSize: '0.8125rem', fontFamily: 'monospace', background: '#f7f8fa', padding: '0.5rem', borderRadius: '4px', wordBreak: 'break-all' }}>
+      <p style={{ marginBottom: '1rem', fontSize: '0.8125rem', fontFamily: 'monospace', background: 'var(--cds-layer-01)', padding: '0.5rem', borderRadius: '2px', wordBreak: 'break-all' }}>
         <strong>Standard:</strong> Name, Social Platform URL, Handle, Persona, Description, Campaigns, Followers, Geos — or numbered: Social Platform URL #1, Handle #1, Follower Count #1, …
       </p>
       <FileUploader
@@ -548,7 +547,7 @@ function CsvUploadModal({ open, onClose, onImport }) {
         onChange={handleFileChange}
       />
       {campaignName && (
-        <p style={{ marginTop: '0.75rem', fontSize: '0.8125rem', color: '#3b82d4' }}>
+        <p style={{ marginTop: '0.75rem', fontSize: '0.8125rem', color: 'var(--cds-link-primary)' }}>
           Campaign: <strong>{campaignName}</strong>
         </p>
       )}
@@ -568,7 +567,7 @@ function CsvUploadModal({ open, onClose, onImport }) {
           <div style={{ overflowX: 'auto' }}>
             <table style={{ borderCollapse: 'collapse', fontSize: '0.8125rem', width: '100%' }}>
               <thead>
-                <tr style={{ background: '#f7f8fa', borderBottom: '1px solid #e5e7eb' }}>
+                <tr style={{ background: 'var(--cds-layer-01)', borderBottom: '1px solid var(--cds-border-subtle-00)' }}>
                   {['Name','Platforms','Location','Campaign'].map(h => (
                     <th key={h} style={{ padding: '4px 8px', textAlign: 'left', fontWeight: 600 }}>{h}</th>
                   ))}
@@ -582,7 +581,7 @@ function CsvUploadModal({ open, onClose, onImport }) {
                     ? inf.platforms.map(p => p.platform).join(', ')
                     : '—';
                   return (
-                    <tr key={i} style={{ borderBottom: '1px solid #e5e7eb' }}>
+                    <tr key={i} style={{ borderBottom: '1px solid var(--cds-border-subtle-00)' }}>
                       <td style={{ padding: '4px 8px' }}>{nameVal}</td>
                       <td style={{ padding: '4px 8px' }}>{platformSummary}</td>
                       <td style={{ padding: '4px 8px' }}>{inf.location || '—'}</td>
@@ -593,7 +592,7 @@ function CsvUploadModal({ open, onClose, onImport }) {
               </tbody>
             </table>
           </div>
-          <p style={{ marginTop: '0.5rem', fontSize: '0.8125rem', color: '#57606a' }}>
+          <p style={{ marginTop: '0.5rem', fontSize: '0.8125rem', color: 'var(--cds-text-secondary)' }}>
             Ready to import all rows. Existing influencers (matched by name) will be merged.
           </p>
         </div>
@@ -621,12 +620,14 @@ function InfluencerCard({ influencer, selected, onClick, onEdit }) {
           <p className="hub-card-meta">{influencer.persona_group} · {influencer.location} · {fmt(totalFollowers)} followers</p>
         </div>
         <div className="hub-card-top-actions">
-          <button
-            className="hub-edit-btn"
-            title="Edit influencer"
+          <IconButton
+            kind="ghost"
+            size="sm"
+            label={`Edit ${influencer.name}`}
             onClick={e => { e.stopPropagation(); onEdit(influencer); }}
-            aria-label={`Edit ${influencer.name}`}
-          >✎</button>
+          >
+            <Edit size={16} />
+          </IconButton>
         </div>
       </div>
       <div className="hub-card-tags">
@@ -663,14 +664,11 @@ const BASE_CAMPAIGN_OPTIONS = [
 
 function FilterSelect({ label, value, options, onChange }) {
   return (
-    <div className="hub-filter-select">
-      <label className="hub-filter-label">{label}</label>
-      <select className="hub-filter-native" value={value} onChange={e => onChange(e.target.value)}>
-        {options.map(o => (
-          <option key={o.value} value={o.value}>{o.text}</option>
-        ))}
-      </select>
-    </div>
+    <Select id={`filter-${label.toLowerCase().replace(/\s+/g, '-')}`} labelText={label} value={value} onChange={e => onChange(e.target.value)} size="sm">
+      {options.map(o => (
+        <SelectItem key={o.value} value={o.value} text={o.text} />
+      ))}
+    </Select>
   );
 }
 
@@ -794,7 +792,7 @@ function OverviewTab({ influencer }) {
               <PlatformTag platform={p.platform} size="lg" />
               <p className="hub-platform-handle">
                 {p.url
-                  ? <a href={p.url} target="_blank" rel="noopener noreferrer">{p.handle || p.url}</a>
+                  ? <Link href={p.url} target="_blank" rel="noopener noreferrer">{p.handle || p.url}</Link>
                   : (p.handle || '—')}
               </p>
               <p className="hub-muted">{fmt(p.follower_count)} followers</p>
@@ -877,8 +875,8 @@ function ContentTab({ influencer }) {
           <p className="hub-heading-sm">Past IBM Content</p>
           <p className="hub-muted">All #IBMPartner posts by {influencer.name}</p>
         </div>
-        <Button kind="primary" size="sm" onClick={handleSync} disabled={syncing}>
-          {syncing ? 'Syncing…' : '↻ Sync Content'}
+        <Button kind="primary" size="sm" onClick={handleSync} disabled={syncing} renderIcon={syncing ? undefined : SendAlt}>
+          {syncing ? 'Syncing…' : 'Sync Content'}
         </Button>
       </div>
 
@@ -927,11 +925,13 @@ function ContentTab({ influencer }) {
                   <StructuredListCell>{c.campaign || '—'}</StructuredListCell>
                   <StructuredListCell>
                     {c.permalink
-                      ? <Link href={c.permalink} target="_blank" rel="noopener noreferrer" style={{ whiteSpace: 'nowrap' }}>View ↗</Link>
+                      ? <Link href={c.permalink} target="_blank" rel="noopener noreferrer" renderIcon={ArrowRight} style={{ whiteSpace: 'nowrap' }}>View</Link>
                       : '—'}
                   </StructuredListCell>
                   <StructuredListCell>
-                    <button className="hub-edit-btn" title="Edit entry" onClick={() => setEditEntry(c)} aria-label="Edit content entry">✎</button>
+                    <IconButton kind="ghost" size="sm" label="Edit content entry" onClick={() => setEditEntry(c)}>
+                      <Edit size={16} />
+                    </IconButton>
                   </StructuredListCell>
                 </StructuredListRow>
               ))}
@@ -980,7 +980,7 @@ function FeedbackTab({ influencer }) {
   return (
     <div className="hub-tab-content">
       <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '0.5rem' }}>
-        <Button kind="primary" size="sm" onClick={() => setOpen(v => !v)}>
+        <Button kind={open ? 'ghost' : 'primary'} size="sm" onClick={() => setOpen(v => !v)}>
           {open ? 'Cancel' : '+ Add Feedback'}
         </Button>
       </div>
@@ -1021,15 +1021,13 @@ function FeedbackTab({ influencer }) {
               ? (
                 <div className="hub-feedback-confirm">
                   <span className="hub-muted" style={{ fontSize: '0.8125rem' }}>This is permanent. Are you sure?</span>
-                  <button className="hub-feedback-delete" onClick={() => handleDelete(f.id)}>Yes, delete</button>
-                  <button className="hub-feedback-cancel-delete" onClick={() => setConfirmId(null)}>Cancel</button>
+                  <Button kind="danger" size="sm" onClick={() => handleDelete(f.id)}>Yes, delete</Button>
+                  <Button kind="ghost" size="sm" onClick={() => setConfirmId(null)}>Cancel</Button>
                 </div>
               ) : (
-                <button
-                  className="hub-feedback-delete"
-                  onClick={() => setConfirmId(f.id)}
-                  aria-label="Delete feedback"
-                >✕ Delete</button>
+                <IconButton kind="ghost" size="sm" label="Delete feedback" onClick={() => setConfirmId(f.id)}>
+                  <TrashCan size={16} />
+                </IconButton>
               )
             }
           </Tile>
@@ -1094,7 +1092,9 @@ function ProfileView({ influencerId, localOverrides = {}, onEdit }) {
             </p>
           </div>
           {onEdit && (
-            <button className="hub-edit-btn" title="Edit influencer" onClick={() => onEdit(influencer)} aria-label={`Edit ${influencer.name}`}>✎</button>
+            <IconButton kind="ghost" size="sm" label={`Edit ${influencer.name}`} onClick={() => onEdit(influencer)}>
+              <Edit size={16} />
+            </IconButton>
           )}
         </div>
         <div className="hub-platform-strip">
@@ -1157,10 +1157,10 @@ function ContentAddModal({ open, onClose, onSave }) {
     <Modal open={open} onRequestClose={onClose} onRequestSubmit={handleSubmit}
       modalHeading="Add Content Entry" primaryButtonText="Add" secondaryButtonText="Cancel"
       onSecondarySubmit={onClose} size="sm">
-      <TextInput id="cnt-creator"   labelText="Creator Name *"  value={form.creator_name} onChange={e => set('creator_name', e.target.value)} style={{ marginBottom: '1rem' }} />
-      <p style={{ fontSize: '0.75rem', color: 'var(--cds-text-secondary)', marginTop: '-0.75rem', marginBottom: '1rem' }}>
-        If this creator has a profile in the hub, the content will be linked to it automatically.
-      </p>
+      <TextInput id="cnt-creator" labelText="Creator Name *" value={form.creator_name} onChange={e => set('creator_name', e.target.value)}
+        helperText="If this creator has a profile in the hub, the content will be linked automatically."
+        style={{ marginBottom: '1rem' }}
+      />
       <Select id="cnt-platform" labelText="Platform" value={form.platform} onChange={e => set('platform', e.target.value)} style={{ marginBottom: '1rem' }}>
         <SelectItem value="" text="— Auto-detect from URL —" />
         {['LinkedIn','YouTube','X','Instagram','TikTok','Reddit','Other'].map(p => <SelectItem key={p} value={p} text={p} />)}
@@ -1248,7 +1248,7 @@ function ContentCsvUploadModal({ open, onClose, onImport }) {
       modalHeading="Upload Content via CSV"
       primaryButtonText="Import" primaryButtonDisabled={!file || preview.length === 0}
       secondaryButtonText="Cancel" onSecondarySubmit={onClose} size="md">
-      <p style={{ marginBottom: '1rem', fontSize: '0.8125rem', fontFamily: 'monospace', background: '#f7f8fa', padding: '0.5rem', borderRadius: '4px', wordBreak: 'break-all' }}>
+      <p style={{ marginBottom: '1rem', fontSize: '0.8125rem', fontFamily: 'monospace', background: 'var(--cds-layer-01)', padding: '0.5rem', borderRadius: '2px', wordBreak: 'break-all' }}>
         Creator Name, Platform, Content Link, Campaign
       </p>
       <p style={{ marginBottom: '1rem', fontSize: '0.8125rem', color: 'var(--cds-text-secondary)' }}>
@@ -1262,7 +1262,7 @@ function ContentCsvUploadModal({ open, onClose, onImport }) {
           <p style={{ fontSize: '0.875rem', marginBottom: '0.5rem' }}>Preview (first {preview.length} rows):</p>
           <table style={{ borderCollapse: 'collapse', fontSize: '0.8125rem', width: '100%' }}>
             <thead>
-              <tr style={{ background: '#f7f8fa', borderBottom: '1px solid #e5e7eb' }}>
+              <tr style={{ background: 'var(--cds-layer-01)', borderBottom: '1px solid var(--cds-border-subtle-00)' }}>
                 {['Creator','Platform','Campaign','Link'].map(h => <th key={h} style={{ padding: '4px 8px', textAlign: 'left', fontWeight: 600 }}>{h}</th>)}
               </tr>
             </thead>
@@ -1270,7 +1270,7 @@ function ContentCsvUploadModal({ open, onClose, onImport }) {
               {preview.map((row, i) => {
                 const e = contentCsvRowToEntry(row);
                 return (
-                  <tr key={i} style={{ borderBottom: '1px solid #e5e7eb' }}>
+                  <tr key={i} style={{ borderBottom: '1px solid var(--cds-border-subtle-00)' }}>
                     <td style={{ padding: '4px 8px' }}>{e.creator_name || '—'}</td>
                     <td style={{ padding: '4px 8px' }}>{e.platform || '—'}</td>
                     <td style={{ padding: '4px 8px' }}>{e.campaign || '—'}</td>
@@ -1280,7 +1280,7 @@ function ContentCsvUploadModal({ open, onClose, onImport }) {
               })}
             </tbody>
           </table>
-          <p style={{ marginTop: '0.5rem', fontSize: '0.8125rem', color: '#57606a' }}>Ready to import all rows.</p>
+          <p style={{ marginTop: '0.5rem', fontSize: '0.8125rem', color: 'var(--cds-text-secondary)' }}>Ready to import all rows.</p>
         </div>
       )}
     </Modal>
@@ -1404,10 +1404,7 @@ function GlobalFeed({ onClose, onSelectInfluencer }) {
                   <StructuredListRow key={e.id}>
                     <StructuredListCell>
                       {e.influencer_id && onSelectInfluencer
-                        ? <button
-                            onClick={() => onSelectInfluencer(e.influencer_id)}
-                            style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', fontWeight: 500, color: 'var(--cds-link-primary)', textDecoration: 'underline', textUnderlineOffset: '2px' }}
-                          >{e.influencer_name || '—'}</button>
+                        ? <Link onClick={() => onSelectInfluencer(e.influencer_id)} style={{ cursor: 'pointer' }}>{e.influencer_name || '—'}</Link>
                         : <span style={{ fontWeight: 500 }}>{e.influencer_name || '—'}</span>
                       }
                     </StructuredListCell>
@@ -1415,13 +1412,17 @@ function GlobalFeed({ onClose, onSelectInfluencer }) {
                     <StructuredListCell>{e.campaign || '—'}</StructuredListCell>
                     <StructuredListCell>
                       {e.permalink
-                        ? <Link href={e.permalink} target="_blank" rel="noopener noreferrer" style={{ whiteSpace: 'nowrap' }}>View ↗</Link>
+                        ? <Link href={e.permalink} target="_blank" rel="noopener noreferrer" renderIcon={ArrowRight} style={{ whiteSpace: 'nowrap' }}>View</Link>
                         : '—'}
                     </StructuredListCell>
                     <StructuredListCell>
                       <div style={{ display: 'flex', gap: '0.25rem' }}>
-                        <button className="hub-edit-btn" title="Edit entry" onClick={() => setEditEntry(e)} aria-label="Edit content entry">✎</button>
-                        <button className="hub-edit-btn hub-edit-btn--danger" title="Delete entry" onClick={() => handleDelete(e.id)} aria-label="Delete content entry">✕</button>
+                        <IconButton kind="ghost" size="sm" label="Edit entry" onClick={() => setEditEntry(e)}>
+                          <Edit size={16} />
+                        </IconButton>
+                        <IconButton kind="danger--ghost" size="sm" label="Delete entry" onClick={() => handleDelete(e.id)}>
+                          <TrashCan size={16} />
+                        </IconButton>
                       </div>
                     </StructuredListCell>
                   </StructuredListRow>
@@ -1571,7 +1572,7 @@ function SocialLeagueCsvUploadModal({ open, onClose, onImport }) {
       modalHeading="Upload Social League Members via CSV"
       primaryButtonText="Import" primaryButtonDisabled={!file || preview.length === 0}
       secondaryButtonText="Cancel" onSecondarySubmit={onClose} size="md">
-      <p style={{ marginBottom: '1rem', fontSize: '0.8125rem', fontFamily: 'monospace', background: '#f7f8fa', padding: '0.5rem', borderRadius: '4px', wordBreak: 'break-all' }}>
+      <p style={{ marginBottom: '1rem', fontSize: '0.8125rem', fontFamily: 'monospace', background: 'var(--cds-layer-01)', padding: '0.5rem', borderRadius: '2px', wordBreak: 'break-all' }}>
         Name, Title, LinkedIn, Email, Member Identity, Collaborate with SM+I, Followers, Location, Business Unit + Aligned, w3, Talks about AI
       </p>
       <FileUploader labelTitle="Select CSV file" labelDescription="Only .csv files are accepted"
@@ -1582,7 +1583,7 @@ function SocialLeagueCsvUploadModal({ open, onClose, onImport }) {
           <p style={{ fontSize: '0.875rem', marginBottom: '0.5rem' }}>Preview (first {preview.length} rows):</p>
           <table style={{ borderCollapse: 'collapse', fontSize: '0.8125rem', width: '100%' }}>
             <thead>
-              <tr style={{ background: '#f7f8fa', borderBottom: '1px solid #e5e7eb' }}>
+              <tr style={{ background: 'var(--cds-layer-01)', borderBottom: '1px solid var(--cds-border-subtle-00)' }}>
                 {['Name','Title','Identity','Location','Followers'].map(h => (
                   <th key={h} style={{ padding: '4px 8px', textAlign: 'left', fontWeight: 600 }}>{h}</th>
                 ))}
@@ -1592,7 +1593,7 @@ function SocialLeagueCsvUploadModal({ open, onClose, onImport }) {
               {preview.map((row, i) => {
                 const m = slCsvRowToMember(row);
                 return (
-                  <tr key={i} style={{ borderBottom: '1px solid #e5e7eb' }}>
+                  <tr key={i} style={{ borderBottom: '1px solid var(--cds-border-subtle-00)' }}>
                     <td style={{ padding: '4px 8px' }}>{m.name || '—'}</td>
                     <td style={{ padding: '4px 8px' }}>{m.title || '—'}</td>
                     <td style={{ padding: '4px 8px' }}>{m.member_identity || '—'}</td>
@@ -1603,7 +1604,7 @@ function SocialLeagueCsvUploadModal({ open, onClose, onImport }) {
               })}
             </tbody>
           </table>
-          <p style={{ marginTop: '0.5rem', fontSize: '0.8125rem', color: '#57606a' }}>Ready to import all rows. Existing members (matched by name) will be updated.</p>
+          <p style={{ marginTop: '0.5rem', fontSize: '0.8125rem', color: 'var(--cds-text-secondary)' }}>Ready to import all rows. Existing members (matched by name) will be updated.</p>
         </div>
       )}
     </Modal>
@@ -1788,12 +1789,14 @@ function SocialLeagueView() {
                 </div>
                 <div className="hub-card-top-actions">
                   <Tag type={IDENTITY_COLORS[m.member_identity] || 'gray'} size="sm">{m.member_identity}</Tag>
-                  <button
-                    className="hub-edit-btn"
-                    title="Edit member"
+                  <IconButton
+                    kind="ghost"
+                    size="sm"
+                    label={`Edit ${m.name}`}
                     onClick={e => { e.stopPropagation(); setSelected(m.id); setEditModal(true); }}
-                    aria-label={`Edit ${m.name}`}
-                  >✎</button>
+                  >
+                    <Edit size={16} />
+                  </IconButton>
                 </div>
               </div>
             </Tile>
@@ -1824,7 +1827,9 @@ function SocialLeagueView() {
                   &nbsp;·&nbsp; {fmt(selectedMember.followers)} LinkedIn followers
                 </p>
               </div>
-              <button className="hub-edit-btn" title="Edit member" onClick={() => setEditModal(true)} aria-label={`Edit ${selectedMember.name}`}>✎</button>
+              <IconButton kind="ghost" size="sm" label={`Edit ${selectedMember.name}`} onClick={() => setEditModal(true)}>
+                <Edit size={16} />
+              </IconButton>
             </div>
           </div>
           <div className="hub-tab-content" style={{ padding: '1.5rem 2rem' }}>
@@ -1845,7 +1850,7 @@ function SocialLeagueView() {
                 <p className="hub-section-label">LinkedIn</p>
                 <p className="hub-body-text" style={{ wordBreak: 'break-all' }}>
                   {selectedMember.linkedin
-                    ? <a href={selectedMember.linkedin} target="_blank" rel="noopener noreferrer">View profile</a>
+                    ? <Link href={selectedMember.linkedin} target="_blank" rel="noopener noreferrer">View profile</Link>
                     : '—'}
                 </p>
               </Tile>
@@ -1854,7 +1859,7 @@ function SocialLeagueView() {
               <div className="hub-section">
                 <p className="hub-section-label">w3 Profile</p>
                 <p className="hub-body-text">
-                  <a href={selectedMember.w3} target="_blank" rel="noopener noreferrer">{selectedMember.w3}</a>
+                  <Link href={selectedMember.w3} target="_blank" rel="noopener noreferrer">{selectedMember.w3}</Link>
                 </p>
               </div>
             )}
@@ -1896,18 +1901,22 @@ const CHAT_SUGGESTIONS = [
   'Who worked on IBM Think with a score above 8?',
   'Show YouTube creators with IBM content',
   'How many influencers are in the database?',
+  '📋 Paste a message to vet influencers',
 ];
 
 function ChatBot({ onSelectInfluencer }) {
   const [open, setOpen]       = useState(false);
   const [greetingDismissed, setGreetingDismissed] = useState(false);
   const [messages, setMessages] = useState([
-    { role: 'bot', text: 'Hi! I\'m powered by AI and have full access to the influencer database. Ask me anything — find creators by location, event, platform, score, or ask general questions like "how many active influencers do we have?"' },
+    { role: 'bot', text: 'Hi! I\'m powered by AI and have full access to the influencer database. Ask me anything — find creators by location, event, platform, score, or ask general questions like "how many active influencers do we have?"\n\nTip: use the 📋 button to paste a forwarded message or email and I\'ll automatically vet every influencer mentioned.' },
   ]);
   const [input, setInput]     = useState('');
   const [loading, setLoading] = useState(false);
+  const [pasteMode, setPasteMode] = useState(false);
+  const [pasteText, setPasteText] = useState('');
   const bottomRef = useRef(null);
   const inputRef  = useRef(null);
+  const pasteRef  = useRef(null);
 
   useEffect(() => {
     if (open) {
@@ -1932,11 +1941,31 @@ function ChatBot({ onSelectInfluencer }) {
     });
   }
 
+  function sendPaste() {
+    const msg = pasteText.trim();
+    if (!msg) return;
+    setPasteMode(false);
+    setPasteText('');
+    const wrapped = `Please vet the following forwarded message and check if any influencers mentioned have been worked with before. Also report their rate if the message asks about cost.\n\n---\n${msg}`;
+    setMessages(prev => {
+      const updated = [...prev, { role: 'user', text: msg }];
+      _sendRequest(wrapped, updated);
+      return updated;
+    });
+  }
+
+  function openPasteMode() {
+    setPasteMode(true);
+    setTimeout(() => pasteRef.current?.focus(), 80);
+  }
+
   async function _sendRequest(msg, currentMessages) {
     setLoading(true);
-    // Build conversation history for the AI (exclude the initial bot greeting)
+    // Build conversation history for the AI (exclude the initial bot greeting and the
+    // current user message, which is sent separately as `message`)
     const history = currentMessages
       .slice(1) // skip greeting
+      .slice(0, -1) // exclude the last message (the current user message, sent as `message`)
       .slice(-10) // last 10 messages for context window efficiency
       .map(m => ({ role: m.role === 'bot' ? 'assistant' : 'user', text: m.text }));
     try {
@@ -1966,16 +1995,10 @@ function ChatBot({ onSelectInfluencer }) {
       {/* Greeting bubble */}
       {!open && !greetingDismissed && (
         <div className="hub-chat-greeting" role="status" aria-live="polite">
-          <p className="hub-chat-greeting-text">Hi there 👋! Let me know how I can be of assistance!</p>
-          <button
-            className="hub-chat-greeting-dismiss"
-            onClick={() => setGreetingDismissed(true)}
-            aria-label="Dismiss greeting"
-          >
-            <svg viewBox="0 0 16 16" width="12" height="12" fill="currentColor" aria-hidden="true">
-              <path d="M12 4.7L11.3 4 8 7.3 4.7 4 4 4.7 7.3 8 4 11.3l.7.7L8 8.7l3.3 3.3.7-.7L8.7 8z"/>
-            </svg>
-          </button>
+          <p className="hub-chat-greeting-text">Hi there! Let me know how I can be of assistance!</p>
+          <IconButton kind="ghost" size="sm" label="Dismiss greeting" onClick={() => setGreetingDismissed(true)}>
+            <Close size={12} />
+          </IconButton>
         </div>
       )}
 
@@ -2012,11 +2035,9 @@ function ChatBot({ onSelectInfluencer }) {
               <p className="hub-chat-title">Creator Assistant</p>
               <p className="hub-chat-subtitle">AI-powered · Ask anything about your influencers</p>
             </div>
-            <button className="hub-chat-close" onClick={() => setOpen(false)} aria-label="Close">
-              <svg viewBox="0 0 16 16" width="16" height="16" fill="currentColor" aria-hidden="true">
-                <path d="M12 4.7L11.3 4 8 7.3 4.7 4 4 4.7 7.3 8 4 11.3l.7.7L8 8.7l3.3 3.3.7-.7L8.7 8z"/>
-              </svg>
-            </button>
+            <IconButton kind="ghost" size="sm" label="Close assistant" onClick={() => setOpen(false)}>
+              <Close size={16} />
+            </IconButton>
           </div>
 
           {/* Messages */}
@@ -2027,7 +2048,7 @@ function ChatBot({ onSelectInfluencer }) {
                 {m.results && m.results.length > 0 && (
                   <div className="hub-chat-results">
                     {m.results.slice(0, 8).map(inf => (
-                      <button
+                      <ClickableTile
                         key={inf.id}
                         className="hub-chat-result-card"
                         onClick={() => { onSelectInfluencer(inf.id); setOpen(false); }}
@@ -2040,18 +2061,17 @@ function ChatBot({ onSelectInfluencer }) {
                             {inf.location ? ` · ${inf.location}` : ''}
                           </p>
                         </div>
-                        <svg className="hub-chat-result-arrow" viewBox="0 0 16 16" width="12" height="12" fill="currentColor" aria-hidden="true">
-                          <path d="M11.293 8L6 2.707 6.707 2l6 6-6 6L6 13.293z"/>
-                        </svg>
-                      </button>
+                        <ArrowRight size={12} className="hub-chat-result-arrow" aria-hidden="true" />
+                      </ClickableTile>
                     ))}
-                    <button
-                      className="hub-chat-export-btn"
+                    <Button
+                      kind="tertiary"
+                      size="sm"
+                      renderIcon={DocumentImport}
                       onClick={() => exportToCsv(m.results)}
-                      title="Export these results to CSV"
                     >
-                      ↓ Export {m.results.length} creator{m.results.length !== 1 ? 's' : ''} to CSV
-                    </button>
+                      Export {m.results.length} creator{m.results.length !== 1 ? 's' : ''} to CSV
+                    </Button>
                     {m.results.length > 8 && (
                       <p className="hub-chat-more">+{m.results.length - 8} more — refine your query to narrow results</p>
                     )}
@@ -2070,35 +2090,89 @@ function ChatBot({ onSelectInfluencer }) {
           </div>
 
           {/* Suggested prompts — always visible */}
-          <div className="hub-chat-suggestions">
-            {CHAT_SUGGESTIONS.map(s => (
-              <button key={s} className="hub-chat-suggestion" onClick={() => send(s)}>{s}</button>
-            ))}
-          </div>
+          {!pasteMode && (
+            <div className="hub-chat-suggestions">
+              {CHAT_SUGGESTIONS.map(s => (
+                <Tag
+                  key={s}
+                  className="hub-chat-suggestion"
+                  onClick={() => s === '📋 Paste a message to vet influencers' ? openPasteMode() : send(s)}
+                  type="blue"
+                  size="sm"
+                  style={{ cursor: 'pointer' }}
+                >
+                  {s}
+                </Tag>
+              ))}
+            </div>
+          )}
 
-          {/* Input */}
-          <div className="hub-chat-input-row">
-            <input
-              ref={inputRef}
-              className="hub-chat-input"
-              placeholder="Ask me to find creators…"
-              value={input}
-              onChange={e => setInput(e.target.value)}
-              onKeyDown={handleKey}
-              disabled={loading}
-              aria-label="Chat message input"
-            />
-            <button
-              className="hub-chat-send"
-              onClick={() => send()}
-              disabled={loading || !input.trim()}
-              aria-label="Send message"
-            >
-              <svg viewBox="0 0 16 16" width="16" height="16" fill="currentColor" aria-hidden="true">
-                <path d="M13.5 8l-11 6V9.5l8-1.5-8-1.5V2l11 6z"/>
-              </svg>
-            </button>
-          </div>
+          {/* Paste mode */}
+          {pasteMode ? (
+            <div className="hub-chat-paste-area">
+              <div className="hub-chat-paste-header">
+                <span>Paste a forwarded message, email, or Slack thread</span>
+                <IconButton kind="ghost" size="sm" label="Cancel paste" onClick={() => { setPasteMode(false); setPasteText(''); }}>
+                  <Close size={16} />
+                </IconButton>
+              </div>
+              <TextArea
+                ref={pasteRef}
+                id="chat-paste-input"
+                labelText=""
+                hideLabel
+                placeholder={'Paste your message here… e.g. "The CSR team is considering will.i.am and https://sineadbovell.com/ for IBM SkillsBuild…"'}
+                value={pasteText}
+                onChange={e => setPasteText(e.target.value)}
+                rows={5}
+                aria-label="Paste message to vet"
+              />
+              <Button
+                kind="primary"
+                size="sm"
+                renderIcon={ArrowRight}
+                onClick={sendPaste}
+                disabled={loading || !pasteText.trim()}
+              >
+                Vet these influencers
+              </Button>
+            </div>
+          ) : (
+            /* Normal input */
+            <div className="hub-chat-input-row">
+              <IconButton
+                kind="ghost"
+                size="md"
+                label="Paste message to vet influencers"
+                onClick={openPasteMode}
+                className="hub-chat-paste-fab"
+              >
+                <DocumentImport size={20} />
+              </IconButton>
+              <TextInput
+                ref={inputRef}
+                id="chat-message-input"
+                className="hub-chat-input"
+                labelText=""
+                hideLabel
+                placeholder="Ask me to find creators…"
+                value={input}
+                onChange={e => setInput(e.target.value)}
+                onKeyDown={handleKey}
+                disabled={loading}
+              />
+              <IconButton
+                kind="primary"
+                size="md"
+                label="Send message"
+                onClick={() => send()}
+                disabled={loading || !input.trim()}
+                className="hub-chat-send"
+              >
+                <SendAlt size={16} />
+              </IconButton>
+            </div>
+          )}
         </div>
       )}
     </>

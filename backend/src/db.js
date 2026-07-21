@@ -1071,6 +1071,65 @@ function chatQuery(message) {
   return { reply, results, filters };
 }
 
+// ── Extended knowledge (CSV import layer — read-only, never shown on dashboard) ──
+
+function searchExtendedKnowledge(query) {
+  if (!query || !query.trim()) return [];
+
+  // Ensure the table exists — gracefully return empty if not yet imported
+  try {
+    db.prepare('SELECT 1 FROM influencers_csv LIMIT 1').get();
+  } catch (_) {
+    return [];
+  }
+
+  const q = query.trim().toLowerCase();
+  // Build tokens from the query to fuzzy-match against name, handle, campaigns, bio
+  const tokens = q.split(/\s+/).filter(t => t.length > 1);
+
+  // Exact name match first
+  const exact = db.prepare(`
+    SELECT * FROM influencers_csv
+    WHERE name_lower = ? OR name_lower LIKE ?
+    LIMIT 5
+  `).all(q, `%${q}%`);
+
+  // Token-based match across name / handle / campaigns / bio
+  const seen = new Set(exact.map(r => r.id));
+  const token_results = [];
+  for (const token of tokens) {
+    const rows = db.prepare(`
+      SELECT * FROM influencers_csv
+      WHERE name_lower LIKE ?
+         OR LOWER(IFNULL(handle,''))    LIKE ?
+         OR LOWER(IFNULL(campaigns,'')) LIKE ?
+         OR LOWER(IFNULL(bio,''))       LIKE ?
+      LIMIT 10
+    `).all(`%${token}%`, `%${token}%`, `%${token}%`, `%${token}%`);
+    for (const r of rows) {
+      if (!seen.has(r.id)) { seen.add(r.id); token_results.push(r); }
+    }
+  }
+
+  const combined = [...exact, ...token_results].slice(0, 8);
+
+  return combined.map(r => ({
+    name:              r.name,
+    handle:            r.handle     || null,
+    social_url:        r.social_url || null,
+    persona:           r.persona    || null,
+    bio:               r.bio        || null,
+    campaigns:         r.campaigns  || null,
+    platforms:         r.platforms  || null,
+    geo:               r.geo        || null,
+    followers:         r.followers  || null,
+    total_impressions: r.total_impressions || null,
+    total_engagement:  r.total_engagement  || null,
+    post_count:        r.post_count        || null,
+    source:            'csv_knowledge_base',
+  }));
+}
+
 module.exports = {
   createInfluencer,
   deleteInfluencer,
@@ -1098,4 +1157,5 @@ module.exports = {
   createSocialLeagueMember,
   upsertSocialLeagueMember,
   updateSocialLeagueMember,
+  searchExtendedKnowledge,
 };

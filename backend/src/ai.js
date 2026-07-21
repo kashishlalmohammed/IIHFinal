@@ -6,7 +6,9 @@ const {
   getInfluencerById,
   getInfluencerScore,
   getInfluencerContent,
+  getInfluencerRate,
   listSocialLeague,
+  searchExtendedKnowledge,
 } = require('./db');
 
 // ── Tool definitions exposed to the LLM ──────────────────────────────────────
@@ -76,6 +78,20 @@ const TOOLS = [
   {
     type: 'function',
     function: {
+      name: 'get_influencer_rate',
+      description: 'Returns the rate/cost on file for a single influencer by their ID. Only call this when the user is specifically asking about cost or what working with someone would cost.',
+      parameters: {
+        type: 'object',
+        properties: {
+          id: { type: 'number', description: 'Influencer ID' },
+        },
+        required: ['id'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
       name: 'list_social_league',
       description: 'Lists internal IBM Social League members. Filter by location, business unit, or AI topics.',
       parameters: {
@@ -99,6 +115,20 @@ const TOOLS = [
         type: 'object',
         properties: {
           query: { type: 'string', description: 'Search query string' },
+        },
+        required: ['query'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'search_extended_knowledge',
+      description: 'Search the extended CSV knowledge base — 800+ influencers from IBM\'s historical spreadsheets and tracking files. Use this when search_influencers returns no results, or when vetting pasted names to check if IBM has ever tracked or worked with someone even if they are not yet fully profiled in the hub.',
+      parameters: {
+        type: 'object',
+        properties: {
+          query: { type: 'string', description: 'Name, handle, or keyword to search for' },
         },
         required: ['query'],
       },
@@ -172,6 +202,13 @@ function executeTool(name, args) {
       const content = getInfluencerContent(args.id);
       return { ...safe, score, content };
     }
+    case 'get_influencer_rate': {
+      const rate = getInfluencerRate(args.id);
+      if (rate === undefined) return { error: 'Influencer not found' };
+      return { id: args.id, rate: rate || 'Not on file' };
+    }
+    case 'search_extended_knowledge':
+      return searchExtendedKnowledge(args.query);
     case 'list_social_league':
       return listSocialLeague(args);
     case 'web_search':
@@ -185,16 +222,38 @@ function executeTool(name, args) {
 
 const SYSTEM_PROMPT = `You are the Creator Assistant for IBM's Influencer Intelligence Hub — an internal tool used by IBM Marketing to manage influencer relationships and campaigns.
 
-You have access to two types of tools:
-1. Database tools — query the live influencer database (use these for anything about existing influencers, stats, campaigns)
-2. web_search — search the internet (use this when asked for recommendations, suggestions, or information about influencers NOT in the database)
+You have access to three types of tools:
+1. **Hub database tools** — query the live 579-profile influencer hub (fully profiled creators with scores, rates, and campaign history)
+2. **search_extended_knowledge** — search 800+ names from IBM's historical spreadsheets and CSV tracking files (people IBM has tracked or worked with even if not yet fully profiled in the hub)
+3. **web_search** — search the internet for external knowledge, new talent ideas, or anything not in our data
 
-Always call a database tool before answering questions about existing influencers, statistics, or campaigns — never guess.
-Use web_search when the user asks for recommendations of new influencers, external talent ideas, or anything requiring up-to-date external knowledge.
-When sharing web search results, always clarify these people are not currently in the database and suggest adding strong candidates.
-When listing influencers in your reply, be concise: mention their name, persona, and one relevant data point. If there are more than 5 results, summarise the count and highlight the top ones.
+## How to answer questions about specific influencers
+Always follow this two-step lookup — NEVER skip step 2:
+1. Call search_influencers (hub database) first.
+2. If not found there, ALWAYS also call search_extended_knowledge — IBM may have worked with or tracked this person in historical spreadsheets even if they're not in the hub.
+3. Only use web_search if both steps above return nothing and external info is needed.
 
-The database contains:
+Report the result clearly:
+- Found in hub → "✅ Yes, [Name] is in our hub — [status, score, campaigns]"
+- Found only in CSV records → "📋 [Name] isn't fully profiled in the hub yet, but appears in IBM's historical tracking records — associated with [campaigns], [followers] followers, [impressions/engagement if available]"
+- Not found anywhere → "❌ [Name] doesn't appear in any of our records"
+
+If the user's message mentions cost/rates/budget AND the person is found in the hub, call get_influencer_rate.
+
+## Pasted message / vetting workflow
+When the user pastes a raw message, email, Slack message, or forwarded text asking about one or more influencers (identified by name, URL, or handle), do ALL of the following for EACH person mentioned:
+1. Extract every name, URL, and handle — do not skip anyone.
+2. Run both search_influencers AND search_extended_knowledge for each person.
+3. Report hub status + CSV history + rate (if cost was mentioned) in a clean summary per person.
+4. A website URL like https://sineadbovell.com/ means search for "sineadbovell" or "sinead bovell" as name/handle.
+
+## General search behaviour
+- Always call a database tool before answering questions about existing influencers — never guess.
+- Use web_search only for recommendations of new influencers, external talent ideas, or up-to-date external knowledge.
+- When sharing web search results, clarify these people are not in our records and suggest adding strong candidates.
+- When listing influencers, be concise: name, persona, one relevant data point. Summarise if more than 5 results.
+
+The hub contains:
 - External influencers (paid/sponsored content creators)
 - Internal influencers (IBM employees in the Social League)
 - Campaign events: IBM Think, Wimbledon, US Open, AWS re:Invent, TechXchange, SXSW, Dreamforce, Gartner, KubeCon, NRF, NY Tech Week, SIBOS, Masters, GRAMMYs, NFL, Ferrari/F1, VivaTech, Mobile World Congress, AI Summit Korea
@@ -224,13 +283,23 @@ async function aiChatQuery(message, history = []) {
 
   // Agentic loop: allow up to 5 tool-call rounds
   for (let round = 0; round < 5; round++) {
-    const response = await groq.chat.completions.create({
-      model: 'llama-3.3-70b-versatile',
-      messages,
-      tools: TOOLS,
-      tool_choice: 'auto',
-      max_tokens: 1024,
-    });
+    let response;
+    try {
+      response = await groq.chat.completions.create({
+        model: 'llama-3.1-8b-instant',
+        messages,
+        tools: TOOLS,
+        tool_choice: 'auto',
+        parallel_tool_calls: false,
+        max_tokens: 1024,
+      });
+    } catch (err) {
+      // Surface rate-limit errors clearly instead of returning an empty response
+      if (err.status === 429) {
+        return { reply: "⚠️ The AI assistant has hit its daily token limit and will be available again in a few hours. In the meantime, you can use the search bar and filters to browse the influencer database.", results: [], filters: {} };
+      }
+      throw err;
+    }
 
     const choice = response.choices[0];
     const assistantMsg = choice.message;
