@@ -3,6 +3,8 @@ const cors = require('cors');
 const path = require('path');
 require('dotenv').config();
 
+const { aiChatQuery } = require('./ai');
+
 const {
   createInfluencer,
   deleteInfluencer,
@@ -263,6 +265,19 @@ app.post('/api/content/backfill-dates', async (req, res) => {
 app.post('/api/search', (req, res) => {
   const results = searchInfluencers(req.body.query).map(({ rate, ...rest }) => rest);
   res.json(results.length > 0 ? results : listInfluencers().map(({ rate, ...rest }) => rest));
+});
+
+app.post('/api/chat', async (req, res) => {
+  const { message, history } = req.body;
+  if (!message || !String(message).trim()) {
+    return res.status(400).json({ error: 'message is required' });
+  }
+  try {
+    const result = await aiChatQuery(String(message).trim(), Array.isArray(history) ? history : []);
+    res.json(result);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 // Serve static frontend AFTER all API routes so the wildcard never intercepts API calls
