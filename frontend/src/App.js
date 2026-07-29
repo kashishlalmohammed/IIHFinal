@@ -349,7 +349,7 @@ function parseCsv(text) {
   const headerIdx = rows.findIndex(isHeaderRow);
   if (headerIdx === -1 || headerIdx >= rows.length - 1) return [];
   const headers = rows[headerIdx].map(h => h.toLowerCase().replace(/\s+/g, '_'));
-d   return rows.slice(headerIdx + 1).map(cols => {
+  return rows.slice(headerIdx + 1).map(cols => {
     const row = {};
     headers.forEach((h, i) => { row[h] = cols[i] || ''; });
     return row;
