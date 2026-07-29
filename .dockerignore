@@ -1,0 +1,35 @@
+# Dependencies
+node_modules
+frontend/node_modules
+backend/node_modules
+
+# Dev / build artefacts
+frontend/build
+backend/data
+
+# Source data files
+*.xlsx
+*.csv
+*.sqlite
+*.db
+
+# Python
+__pycache__
+*.pyc
+*.pyo
+*.py
+
+# Git / OS
+.git
+.gitignore
+.bob
+.DS_Store
+Thumbs.db
+
+# Env
+.env
+.env.*
+
+# Docs
+docs/
+README-DEPLOY.md
