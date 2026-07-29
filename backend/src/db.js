@@ -1,9 +1,11 @@
 const { DatabaseSync } = require('node:sqlite');
 const path = require('path');
+const fs = require('fs');
 
 // DATA_DIR can be overridden by env var so a mounted volume works on IBM Cloud.
 // Locally defaults to backend/data/ (same as before).
 const dataDir = process.env.DATA_DIR || path.join(__dirname, '../data');
+fs.mkdirSync(dataDir, { recursive: true });
 const db = new DatabaseSync(path.join(dataDir, 'influencers.sqlite'));
 
 // ── Schema bootstrap — creates tables if they don't exist ────────────────────
