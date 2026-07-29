@@ -34,9 +34,9 @@ import {
   ArrowRight,
 } from '@carbon/icons-react';
 
-// Backend runs on :3001
+// Backend API base URL
 const API = process.env.NODE_ENV === 'production'
-  ? '/api'
+  ? (process.env.REACT_APP_API_URL || '/api')
   : 'http://localhost:3001/api';
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
