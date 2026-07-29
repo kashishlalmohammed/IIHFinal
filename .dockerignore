@@ -10,7 +10,6 @@ backend/data
 # Source data files
 *.xlsx
 *.csv
-*.sqlite
 *.db
 
 # Python

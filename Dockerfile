@@ -26,6 +26,10 @@ COPY --from=frontend-build /app/frontend/build ./frontend/build
 ENV DATA_DIR=/app/data
 RUN mkdir -p /app/data
 
+# Bundle the seed database — copied to volume on first boot if not already there
+COPY backend/data/influencers.sqlite /app/seed/influencers.sqlite
+
 EXPOSE 3001
 
-CMD ["node", "src/index.js"]
+# On start: seed the volume if empty, then run the app
+CMD ["sh", "-c", "if [ ! -f /app/data/influencers.sqlite ]; then cp /app/seed/influencers.sqlite /app/data/influencers.sqlite; fi && node src/index.js"]
