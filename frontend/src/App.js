@@ -357,7 +357,6 @@ function parseCsv(text) {
     return row;
   }).filter(r => {
     // Skip rows where the name column is empty or all data cols are empty (section label rows)
-    const nameVal = nameColIdx >= 0 ? (rows[0][nameColIdx] || '') : '';
     const rowName = r['influencer'] || r['name'] || r['creator_name'] || '';
     if (!rowName.trim()) return false;
     // Skip section label rows: only first cell has a value, rest are empty
@@ -1904,6 +1903,7 @@ const CHAT_SUGGESTIONS = [
   '📋 Paste a message to vet influencers',
 ];
 
+// eslint-disable-next-line no-unused-vars
 function ChatBot({ onSelectInfluencer }) {
   const [open, setOpen]       = useState(false);
   const [greetingDismissed, setGreetingDismissed] = useState(false);
