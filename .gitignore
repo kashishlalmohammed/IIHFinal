@@ -5,7 +5,7 @@
 *.xlsx
 *.csv
 
-# SQLite databases
+# SQLite databases (global — override below for the seed file)
 *.sqlite
 *.db
 
@@ -37,5 +37,6 @@ geo_source_lookup.json
 # Docs folder (PDFs, Word docs, etc.)
 docs/
 
-# SQLite data (already covered above, explicit path too)
-backend/data/
+# SQLite data directory — exclude everything except the seed DB
+backend/data/*
+!backend/data/influencers.sqlite

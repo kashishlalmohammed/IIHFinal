@@ -1,11 +1,11 @@
 {
-  "name": "ibm-influencer-hub",
+  "name": "influencer-hub",
   "version": "1.0.0",
-  "private": true,
   "scripts": {
-    "dev": "concurrently --names \"API,UI\" --prefix-colors \"cyan,blue\" \"cd backend && npm start\" \"cd frontend && PORT=3002 npm start\""
+    "build": "cd frontend && npm install && npm run build",
+    "start": "cd backend && npm install && node src/index.js"
   },
-  "devDependencies": {
-    "concurrently": "^10.0.3"
+  "engines": {
+    "node": ">=22.0.0"
   }
 }
